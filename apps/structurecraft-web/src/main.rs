@@ -16,7 +16,7 @@ mod web {
             };
             let options = eframe::WebOptions { depth_buffer: 32, ..Default::default() };
             let started = eframe::WebRunner::new()
-                .start(canvas, options, Box::new(|cc| Ok(Box::new(structurecraft_ui_egui::StructureCraftApp::new(cc)))))
+                .start(canvas, options, Box::new(|cc| Ok(Box::new(structurecraft_ui_egui::StructureCraftApp::new(cc, 1)))))
                 .await;
             if let Err(e) = started {
                 log::error!("could not start: {e:?}");

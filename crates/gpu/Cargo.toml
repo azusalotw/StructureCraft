@@ -1,0 +1,18 @@
+[package]
+name = "structurecraft-gpu"
+description = "StructureCraft GPU drawing: nodes, frames and areas as instanced wgpu draws inside egui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+structurecraft-geom = { workspace = true }
+structurecraft-model = { workspace = true }
+egui-wgpu = { workspace = true }
+egui = { workspace = true }
+wgpu = { workspace = true }
+log = { workspace = true }

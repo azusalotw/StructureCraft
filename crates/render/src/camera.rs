@@ -52,12 +52,13 @@ impl Camera {
         DMat4::look_at_rh(self.eye(), self.target, DVec3::Z)
     }
 
-    /// The projection for a viewport of the given aspect ratio (width / height), with a reversed
-    /// infinite depth range for perspective so large models keep depth precision.
+    /// The projection for a viewport of the given aspect ratio (width / height), depth 0 at the
+    /// near plane and 1 at the far one (wgpu's convention). The depth range follows the orbit
+    /// distance, so zooming in on a detail of a large model keeps precision.
     pub fn projection_matrix(&self, aspect: f64) -> DMat4 {
         let aspect = if aspect.is_finite() && aspect > 0.0 { aspect } else { 1.0 };
         match self.projection {
-            Projection::Perspective => DMat4::perspective_infinite_reverse_rh(self.fov_y, aspect, self.distance * 1e-4),
+            Projection::Perspective => DMat4::perspective_rh(self.fov_y, aspect, self.distance * 1e-3, self.distance * 1e3),
             Projection::Orthographic => {
                 let h = self.distance * (self.fov_y * 0.5).tan();
                 let w = h * aspect;
@@ -68,12 +69,37 @@ impl Camera {
 
     /// Model point → viewport pixels (origin top left), or `None` behind the eye.
     pub fn project(&self, p: DVec3, viewport: DVec2) -> Option<DVec2> {
-        let clip = self.projection_matrix(viewport.x / viewport.y) * self.view() * p.extend(1.0);
+        let clip = self.view_projection(viewport) * p.extend(1.0);
         if !(clip.w > 0.0) {
             return None;
         }
         let ndc = clip.truncate() / clip.w;
         Some(DVec2::new((ndc.x + 1.0) * 0.5 * viewport.x, (1.0 - ndc.y) * 0.5 * viewport.y))
+    }
+
+    /// The model → clip transform for a viewport of `viewport` pixels.
+    pub fn view_projection(&self, viewport: DVec2) -> DMat4 {
+        self.projection_matrix(viewport.x / viewport.y) * self.view()
+    }
+
+    /// The ray through a viewport pixel (origin top left): a point on it and its unit direction.
+    pub fn ray(&self, px: DVec2, viewport: DVec2) -> Option<(DVec3, DVec3)> {
+        let inverse = self.view_projection(viewport).inverse();
+        let ndc = DVec2::new(px.x / viewport.x * 2.0 - 1.0, 1.0 - px.y / viewport.y * 2.0);
+        let near = inverse.project_point3(ndc.extend(0.0));
+        let far = inverse.project_point3(ndc.extend(0.5));
+        let dir = (far - near).normalize_or_zero();
+        (near.is_finite() && dir != DVec3::ZERO).then_some((near, dir))
+    }
+
+    /// Where the ray through a pixel meets the horizontal plane at `z`, if it does in front.
+    pub fn on_plane(&self, px: DVec2, viewport: DVec2, z: f64) -> Option<DVec3> {
+        let (o, d) = self.ray(px, viewport)?;
+        if d.z.abs() < 1e-9 {
+            return None;
+        }
+        let t = (z - o.z) / d.z;
+        (t > 0.0 && t.is_finite()).then(|| o + d * t)
     }
 
     /// Rotate by a drag of `delta` radians (x: yaw, y: pitch).
@@ -134,6 +160,16 @@ mod tests {
         cam.zoom(-1.0);
         cam.pan(DVec2::splat(f64::INFINITY));
         assert_eq!(cam, before);
+    }
+
+    #[test]
+    fn a_pixel_ray_lands_back_on_the_pixel() {
+        let cam = Camera::default();
+        let vp = DVec2::new(800.0, 600.0);
+        let px = DVec2::new(123.0, 456.0);
+        let p = cam.on_plane(px, vp, 0.0).unwrap();
+        assert!(p.z.abs() < 1e-9);
+        assert!((cam.project(p, vp).unwrap() - px).length() < 1e-6);
     }
 
     #[test]

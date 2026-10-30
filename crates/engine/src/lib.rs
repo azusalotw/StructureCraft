@@ -34,6 +34,7 @@ pub struct Session {
     pub dirty: bool,
     undo: Vec<Step>,
     redo: Vec<Step>,
+    revision: u64,
 }
 
 /// A command's description, as the UI, `--help` and MCP `tools/list` show it.
@@ -126,12 +127,19 @@ impl Session {
     }
 
     pub fn with_model(model: Model) -> Self {
-        Self { model, dirty: false, undo: Vec::new(), redo: Vec::new() }
+        Self { model, dirty: false, undo: Vec::new(), redo: Vec::new(), revision: 0 }
     }
 
     /// Replace the model and forget the undo history.
     pub fn replace_model(&mut self, model: Model) {
+        let revision = self.revision + 1;
         *self = Self::with_model(model);
+        self.revision = revision;
+    }
+
+    /// Changes whenever the model does, so views rebuild only then.
+    pub fn revision(&self) -> u64 {
+        self.revision
     }
 
     /// Run a command by id. Hostile input yields an error, never a panic.
@@ -154,6 +162,7 @@ impl Session {
                     self.push_undo(Step { label, changes });
                     self.redo.clear();
                     self.dirty = true;
+                    self.revision += 1;
                 }
                 Ok(out)
             }
@@ -190,6 +199,7 @@ impl Session {
         let redo = self.replay(step)?;
         self.redo.push(redo);
         self.dirty = true;
+        self.revision += 1;
         Ok(label)
     }
 
@@ -199,6 +209,7 @@ impl Session {
         let undo = self.replay(step)?;
         self.push_undo(undo);
         self.dirty = true;
+        self.revision += 1;
         Ok(label)
     }
 

@@ -2924,6 +2924,7 @@ dependencies = [
  "serde_json",
  "structurecraft-engine",
  "structurecraft-geom",
+ "structurecraft-gpu",
  "structurecraft-io",
  "structurecraft-mcp",
 ]
@@ -2948,6 +2949,18 @@ version = "0.1.0"
 dependencies = [
  "glam",
  "serde",
+]
+
+[[package]]
+name = "structurecraft-gpu"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "egui-wgpu",
+ "log",
+ "structurecraft-geom",
+ "structurecraft-model",
+ "wgpu",
 ]
 
 [[package]]
@@ -2994,11 +3007,15 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "egui",
+ "egui-wgpu",
  "log",
  "serde_json",
  "structurecraft-engine",
  "structurecraft-geom",
+ "structurecraft-gpu",
+ "structurecraft-model",
  "structurecraft-render",
+ "web-time",
 ]
 
 [[package]]

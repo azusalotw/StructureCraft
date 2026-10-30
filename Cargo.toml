@@ -19,6 +19,7 @@ structurecraft-io = { path = "crates/io" }
 structurecraft-engine = { path = "crates/engine" }
 structurecraft-ui-egui = { path = "crates/ui-egui" }
 structurecraft-mcp = { path = "crates/mcp" }
+structurecraft-gpu = { path = "crates/gpu" }
 
 # foundation
 thiserror = "2"
@@ -37,6 +38,7 @@ glam = { version = "0.30", features = ["serde"] }
 egui = "0.33"
 eframe = { version = "0.33", default-features = false }
 web-time = "1"
+egui-wgpu = { version = "0.33", default-features = false }
 # the wgpu eframe draws with; the apps choose its backends
 wgpu = { version = "27", default-features = false, features = ["std", "wgsl"] }
 

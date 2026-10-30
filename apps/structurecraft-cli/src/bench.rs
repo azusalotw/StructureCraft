@@ -6,6 +6,19 @@ use serde_json::{Value, json};
 use structurecraft_engine::{Session, format_id};
 use structurecraft_geom::DVec3;
 
+/// Any colours: packing costs the same.
+const PALETTE: structurecraft_gpu::Palette = structurecraft_gpu::Palette {
+    node: [255; 4],
+    support: [255; 4],
+    beam: [255; 4],
+    column: [255; 4],
+    brace: [255; 4],
+    slab: [255; 4],
+    wall: [255; 4],
+    selected: [255; 4],
+    selected_area: [255; 4],
+};
+
 fn timed<T>(label: &str, f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
     let start = Instant::now();
     let out = f()?;
@@ -32,6 +45,13 @@ pub fn run(bays: Option<&str>, stories: Option<&str>) -> Result<(), String> {
     timed("generate building", || exec(&mut s, "generate.building", json!({"bays_x": bays, "bays_y": bays, "stories": stories})))?;
     let info = timed("model info (bounds)", || exec(&mut s, "model.info", json!({})))?;
     println!("  {}", info["counts"]);
+
+    let scene = timed("pack the GPU scene", || {
+        let origin = s.model.bounds().center().unwrap_or_default();
+        Ok(structurecraft_gpu::SceneBuilder { model: &s.model, palette: PALETTE, origin }.whole(1))
+    })?;
+    println!("  {:.1} MB of vertex data", (scene.points.len() + scene.lines.len() + scene.triangles.len()) as f64 / 1e6);
+    drop(scene);
 
     let bytes = timed("save to bytes", || structurecraft_io::to_bytes(&s.model).map_err(|e| e.to_string()))?;
     println!("  {:.1} MB", bytes.len() as f64 / 1e6);

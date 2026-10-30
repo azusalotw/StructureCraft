@@ -6,8 +6,20 @@ StructureCraft aims to be a free, open alternative to SAP2000, ETABS and MIDAS: 
 building in 3D with nodes, beams, columns and slabs, then analyse it. It runs on Windows,
 macOS and Linux, in the browser, and AI agents can model through its built-in MCP server.
 
-> Early days: the workspace, the window and the command layer are in place. The structural
-> model, the GPU viewport and the modeling tools come next; the analysis engine after that.
+> Early days: you can model (nodes, beams, columns, braces, slabs, walls, sections, stories),
+> view models of hundreds of thousands of nodes, and drive everything from the CLI or MCP. The
+> analysis engine comes next.
+
+## Using the desktop app
+
+- **Navigate:** right drag orbits, middle drag (or Shift + right drag) pans, the wheel zooms.
+  Plan, Front, Side and 3D set the view; F fits the model.
+- **Tools:** Select (click, Shift-click, drag a box), Node, Beam (click points in turn), Column
+  (click a plan point: from the story below to the working story), Slab (click corners, then
+  the first corner, a double-click or Enter). Points snap to nodes and grid intersections.
+- **Edit:** Delete removes the selection, Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z redoes. The
+  Properties panel changes supports, sections and frame roles.
+- **Start a model:** Model > Generate building, or `structurecraft path/to/model.stc`.
 
 ## Build
 

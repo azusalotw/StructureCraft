@@ -124,10 +124,20 @@ pub fn node(session: &mut Session, input: Value) -> Result<Value, CommandError> 
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
-enum RoleName {
+pub(crate) enum RoleName {
     Beam,
     Column,
     Brace,
+}
+
+impl From<RoleName> for FrameRole {
+    fn from(r: RoleName) -> Self {
+        match r {
+            RoleName::Beam => FrameRole::Beam,
+            RoleName::Column => FrameRole::Column,
+            RoleName::Brace => FrameRole::Brace,
+        }
+    }
 }
 
 pub fn frame(session: &mut Session, input: Value) -> Result<Value, CommandError> {
@@ -148,12 +158,7 @@ pub fn frame(session: &mut Session, input: Value) -> Result<Value, CommandError>
         let (nodes, created) = nodes_at(tx, &points, Restraint::FREE)?;
         let mut rows = Vec::with_capacity(segments.len());
         for ([a, b], &[i, j]) in segments.iter().zip(nodes.as_chunks::<2>().0) {
-            let role = match role {
-                Some(RoleName::Beam) => FrameRole::Beam,
-                Some(RoleName::Column) => FrameRole::Column,
-                Some(RoleName::Brace) => FrameRole::Brace,
-                None => FrameRole::from_direction(b.0 - a.0),
-            };
+            let role = role.map_or_else(|| FrameRole::from_direction(b.0 - a.0), FrameRole::from);
             let section = match section {
                 Some(s) => s,
                 None => default_section(tx.model(), false, role == FrameRole::Column)?,
@@ -163,6 +168,22 @@ pub fn frame(session: &mut Session, input: Value) -> Result<Value, CommandError>
         let frames = tx.add_frames(rows)?;
         Ok(json!({"frames": id_list(&frames), "nodes_created": created}))
     })
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum AreaRoleName {
+    Slab,
+    Wall,
+}
+
+impl From<AreaRoleName> for AreaRole {
+    fn from(r: AreaRoleName) -> Self {
+        match r {
+            AreaRoleName::Slab => AreaRole::Slab,
+            AreaRoleName::Wall => AreaRole::Wall,
+        }
+    }
 }
 
 pub fn area(session: &mut Session, input: Value) -> Result<Value, CommandError> {
@@ -175,19 +196,10 @@ pub fn area(session: &mut Session, input: Value) -> Result<Value, CommandError> 
         #[serde(default)]
         role: Option<AreaRoleName>,
     }
-    #[derive(Debug, Clone, Copy, Deserialize)]
-    #[serde(rename_all = "snake_case")]
-    enum AreaRoleName {
-        Slab,
-        Wall,
-    }
     let Input { polygons, section, role } = parse(input)?;
     check_batch(polygons.iter().map(Vec::len).sum())?;
     let section = section.as_ref().map(Ref::id).transpose()?;
-    let role = match role {
-        Some(AreaRoleName::Wall) => AreaRole::Wall,
-        _ => AreaRole::Slab,
-    };
+    let role = role.map_or(AreaRole::Slab, AreaRole::from);
     let points: Vec<DVec3> = polygons.iter().flatten().map(|p| p.0).collect();
     session.edit("Draw areas", |tx| {
         let (nodes, created) = nodes_at(tx, &points, Restraint::FREE)?;

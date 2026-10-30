@@ -2,9 +2,9 @@
 
 use serde::Deserialize;
 use serde_json::{Value, json};
-use structurecraft_model::{Change, Node, Op};
+use structurecraft_model::{Area, Change, Frame, Node, Op};
 
-use super::draw::RestraintName;
+use super::draw::{AreaRoleName, RestraintName, RoleName};
 use super::{Point, Ref, check_batch, ids, ids_schema, parse};
 use crate::{CommandError, Session};
 
@@ -129,6 +129,92 @@ pub fn restrain(session: &mut Session, input: Value) -> Result<Value, CommandErr
         let changed = rows.len();
         if changed > 0 {
             tx.apply(Change::Nodes(Op::Set(rows)))?;
+        }
+        Ok(json!({"changed": changed}))
+    })
+}
+
+pub const FRAME_SET_SUMMARY: &str = "Change the section or role of frames.";
+pub const AREA_SET_SUMMARY: &str = "Change the section or role of areas.";
+
+pub fn frame_set_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {"frames": ids_schema("frame"), "section": {"type": "string"}, "role": {"enum": ["beam", "column", "brace"]}},
+        "required": ["frames"],
+        "additionalProperties": false,
+    })
+}
+
+pub fn area_set_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {"areas": ids_schema("area"), "section": {"type": "string"}, "role": {"enum": ["slab", "wall"]}},
+        "required": ["areas"],
+        "additionalProperties": false,
+    })
+}
+
+pub fn frame_set(session: &mut Session, input: Value) -> Result<Value, CommandError> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Input {
+        frames: Vec<Ref>,
+        #[serde(default)]
+        section: Option<Ref>,
+        #[serde(default)]
+        role: Option<RoleName>,
+    }
+    let Input { frames, section, role } = parse(input)?;
+    check_batch(frames.len())?;
+    let ids = ids::<Frame>(&frames)?;
+    let section = section.as_ref().map(Ref::id).transpose()?;
+    session.edit("Change frames", |tx| {
+        let rows = ids
+            .iter()
+            .map(|id| {
+                tx.model()
+                    .frames()
+                    .get(*id)
+                    .map(|f| (*id, Frame { section: section.unwrap_or(f.section), role: role.map_or(f.role, Into::into), ..*f }))
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| CommandError::InvalidInput("a frame to change does not exist".to_owned()))?;
+        let changed = rows.len();
+        if changed > 0 {
+            tx.apply(Change::Frames(Op::Set(rows)))?;
+        }
+        Ok(json!({"changed": changed}))
+    })
+}
+
+pub fn area_set(session: &mut Session, input: Value) -> Result<Value, CommandError> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Input {
+        areas: Vec<Ref>,
+        #[serde(default)]
+        section: Option<Ref>,
+        #[serde(default)]
+        role: Option<AreaRoleName>,
+    }
+    let Input { areas, section, role } = parse(input)?;
+    check_batch(areas.len())?;
+    let ids = ids::<Area>(&areas)?;
+    let section = section.as_ref().map(Ref::id).transpose()?;
+    session.edit("Change areas", |tx| {
+        let rows =
+            ids.iter()
+                .map(|id| {
+                    tx.model().areas().get(*id).map(|a| {
+                        (*id, Area { corners: a.corners.clone(), section: section.unwrap_or(a.section), role: role.map_or(a.role, Into::into) })
+                    })
+                })
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| CommandError::InvalidInput("an area to change does not exist".to_owned()))?;
+        let changed = rows.len();
+        if changed > 0 {
+            tx.apply(Change::Areas(Op::Set(rows)))?;
         }
         Ok(json!({"changed": changed}))
     })

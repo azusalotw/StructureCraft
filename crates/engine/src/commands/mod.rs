@@ -24,12 +24,14 @@ pub(crate) const MAX_BATCH: usize = 5_000_000;
 
 static REGISTRY: &[CommandSpec] = &[
     CommandSpec { id: "area.draw", summary: draw::AREA_SUMMARY, input_schema: draw::area_schema, run: draw::area },
+    CommandSpec { id: "area.set", summary: edit::AREA_SET_SUMMARY, input_schema: edit::area_set_schema, run: edit::area_set },
     CommandSpec { id: "edit.redo", summary: "Redo the last undone edit.", input_schema: empty_schema, run: edit::redo },
     CommandSpec { id: "edit.undo", summary: "Undo the last edit.", input_schema: empty_schema, run: edit::undo },
     CommandSpec { id: "element.delete", summary: edit::DELETE_SUMMARY, input_schema: edit::delete_schema, run: edit::delete },
     CommandSpec { id: "element.get", summary: query::GET_SUMMARY, input_schema: query::get_schema, run: query::get },
     CommandSpec { id: "element.list", summary: query::LIST_SUMMARY, input_schema: query::list_schema, run: query::list },
     CommandSpec { id: "frame.draw", summary: draw::FRAME_SUMMARY, input_schema: draw::frame_schema, run: draw::frame },
+    CommandSpec { id: "frame.set", summary: edit::FRAME_SET_SUMMARY, input_schema: edit::frame_set_schema, run: edit::frame_set },
     CommandSpec { id: "generate.building", summary: generate::SUMMARY, input_schema: generate::schema, run: generate::building },
     CommandSpec { id: "grid.set", summary: library::GRID_SUMMARY, input_schema: library::grid_schema, run: library::grid },
     CommandSpec { id: "material.add", summary: library::MATERIAL_SUMMARY, input_schema: library::material_schema, run: library::material },
