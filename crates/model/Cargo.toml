@@ -12,3 +12,6 @@ workspace = true
 [dependencies]
 structurecraft-geom = { workspace = true }
 serde = { workspace = true }
+smallvec = { workspace = true }
+rustc-hash = { workspace = true }
+thiserror = { workspace = true }

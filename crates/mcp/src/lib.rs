@@ -90,7 +90,7 @@ mod tests {
         let call = json!({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "model_new", "arguments": {"name": "Bridge"}}});
         let out = handle(&mut s, &call).unwrap();
         assert_eq!(out["result"]["isError"], false);
-        assert_eq!(s.model.name, "Bridge");
+        assert_eq!(s.model.name(), "Bridge");
     }
 
     #[test]

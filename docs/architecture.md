@@ -21,8 +21,13 @@ arrays directly and never depends on the UI), and the GPU renderer joins L5.
 
 The target is models of hundreds of thousands of nodes at interactive frame rates.
 
-- **Storage:** struct-of-arrays with generational ids, not a graph of boxed objects, so
-  rendering, picking and assembling the stiffness matrix walk contiguous memory.
+- **Storage:** one contiguous generational table per element kind (`crates/model/src/table.rs`),
+  not a graph of boxed objects: compact fixed-size rows, ids of two `u32`s, freed slots
+  reused. Rendering, picking and assembling the stiffness matrix walk contiguous memory, and
+  build their own packed buffers (f32 instances, DOF numbering) from it.
+- **Edits are changes, not copies:** the model changes only through `Change`s that return
+  their inverse, so an undo step of a 500,000-node model stores the edit, not the model.
+- **Files:** fixed-width binary records in tagged chunks (`crates/io`), read in one pass.
 - **Precision:** the model is f64; the GPU gets f32 positions relative to a local origin.
 - **Drawing:** instanced draws for nodes and frames, batched meshes for areas, buffers
   updated in chunks when the model changes rather than rebuilt per frame.
