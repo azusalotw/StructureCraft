@@ -44,12 +44,34 @@ impl StructureCraftApp {
 
     /// The whole window; the one outer container every host draws.
     pub fn ui(&mut self, ctx: &egui::Context) {
+        let (undo, redo) = ctx.input_mut(|i| {
+            let redo = i.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::Z))
+                || i.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::Y));
+            (i.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::Z)), redo)
+        });
+        if undo {
+            self.run("edit.undo", serde_json::Value::Null);
+        }
+        if redo {
+            self.run("edit.redo", serde_json::Value::Null);
+        }
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("New model").clicked() {
                         self.run("model.new", serde_json::Value::Null);
                         self.camera = Camera::default();
+                        ui.close();
+                    }
+                });
+                ui.menu_button("Edit", |ui| {
+                    let (undo, redo) = self.session.history();
+                    if ui.add_enabled(undo.is_some(), egui::Button::new(format!("Undo {}", undo.unwrap_or_default()))).clicked() {
+                        self.run("edit.undo", serde_json::Value::Null);
+                        ui.close();
+                    }
+                    if ui.add_enabled(redo.is_some(), egui::Button::new(format!("Redo {}", redo.unwrap_or_default()))).clicked() {
+                        self.run("edit.redo", serde_json::Value::Null);
                         ui.close();
                     }
                 });
@@ -63,9 +85,9 @@ impl StructureCraftApp {
         });
         egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label(&self.session.model.name);
+                ui.label(self.session.model.name());
                 ui.separator();
-                let u = self.session.model.display_units;
+                let u = self.session.model.display_units();
                 ui.label(format!("{:?}, {:?}", u.force, u.length));
                 if !self.status.is_empty() {
                     ui.separator();
@@ -75,7 +97,20 @@ impl StructureCraftApp {
         });
         egui::SidePanel::left("model_tree").default_width(220.0).show(ctx, |ui| {
             ui.heading("Model");
-            ui.label("Nodes, frames and areas appear here.");
+            let m = &self.session.model;
+            egui::Grid::new("model_counts").num_columns(2).show(ui, |ui| {
+                for (label, n) in [
+                    ("Nodes", m.nodes().len()),
+                    ("Frames", m.frames().len()),
+                    ("Areas", m.areas().len()),
+                    ("Sections", m.sections().len()),
+                    ("Materials", m.materials().len()),
+                ] {
+                    ui.label(label);
+                    ui.label(n.to_string());
+                    ui.end_row();
+                }
+            });
         });
         egui::SidePanel::right("properties").default_width(260.0).show(ctx, |ui| {
             ui.heading("Properties");

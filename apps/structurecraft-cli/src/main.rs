@@ -1,5 +1,7 @@
 //! The headless CLI.
 
+mod bench;
+
 use std::io::{BufRead, Write};
 use std::process::ExitCode;
 
@@ -12,6 +14,9 @@ commands:
   commands              list every command with its summary
   run <ID> [JSON]       run one command on an empty model and print its output
   mcp                   serve the Model Context Protocol on stdin/stdout
+  bench [BAYS] [STORIES]
+                        time the core operations on a generated building of BAYS x BAYS bays
+                        (default 70 x 70 bays, 100 stories: about 510,000 nodes)
 ";
 
 fn main() -> ExitCode {
@@ -25,6 +30,7 @@ fn main() -> ExitCode {
         }
         Some("run") => run(args.get(1).map(String::as_str), args.get(2).map(String::as_str)),
         Some("mcp") => mcp(),
+        Some("bench") => bench::run(args.get(1).map(String::as_str), args.get(2).map(String::as_str)),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())

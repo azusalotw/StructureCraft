@@ -12,4 +12,6 @@ workspace = true
 [dependencies]
 structurecraft-engine = { workspace = true }
 structurecraft-mcp = { workspace = true }
+structurecraft-io = { workspace = true }
+structurecraft-geom = { workspace = true }
 serde_json = { workspace = true }

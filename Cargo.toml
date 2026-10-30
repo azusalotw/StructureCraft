@@ -25,6 +25,10 @@ thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 log = "0.4"
+# inline storage for short lists (an area's corner nodes)
+smallvec = { version = "1.13", features = ["serde", "union", "const_generics"] }
+# fast hashing for the node position index
+rustc-hash = "2"
 
 # math (f64 throughout the model; f32 only on the GPU side)
 glam = { version = "0.30", features = ["serde"] }
