@@ -147,7 +147,7 @@ pub fn frame(session: &mut Session, input: Value) -> Result<Value, CommandError>
     session.edit("Draw frames", |tx| {
         let (nodes, created) = nodes_at(tx, &points, Restraint::FREE)?;
         let mut rows = Vec::with_capacity(segments.len());
-        for ([a, b], ends) in segments.iter().zip(nodes.chunks_exact(2)) {
+        for ([a, b], &[i, j]) in segments.iter().zip(nodes.as_chunks::<2>().0) {
             let role = match role {
                 Some(RoleName::Beam) => FrameRole::Beam,
                 Some(RoleName::Column) => FrameRole::Column,
@@ -158,7 +158,6 @@ pub fn frame(session: &mut Session, input: Value) -> Result<Value, CommandError>
                 Some(s) => s,
                 None => default_section(tx.model(), false, role == FrameRole::Column)?,
             };
-            let [i, j] = [ends.first(), ends.get(1)].map(|n| n.copied().unwrap_or_default());
             rows.push(Frame { i, j, section, role, angle: 0.0 });
         }
         let frames = tx.add_frames(rows)?;
