@@ -13,5 +13,6 @@ workspace = true
 structurecraft-engine = { workspace = true }
 structurecraft-mcp = { workspace = true }
 structurecraft-io = { workspace = true }
+structurecraft-gpu = { workspace = true }
 structurecraft-geom = { workspace = true }
 serde_json = { workspace = true }

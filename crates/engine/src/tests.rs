@@ -152,3 +152,18 @@ fn sections_and_materials() {
     let slab = run(&mut s, "element.list", json!({"kind": "sections"}))["items"][2]["id"].clone();
     assert!(s.execute("frame.draw", json!({"segments": [[[0, 0, 0], [1, 0, 0]]], "section": slab})).is_err());
 }
+
+#[test]
+fn changing_frames_and_areas() {
+    let mut s = Session::new();
+    let f = run(&mut s, "frame.draw", json!({"segments": [[[0, 0, 3], [6, 0, 3]]]}))["frames"][0].clone();
+    let rev = s.revision();
+    run(&mut s, "frame.set", json!({"frames": [f], "role": "brace"}));
+    assert!(s.revision() > rev);
+    assert_eq!(run(&mut s, "element.get", json!({"ids": [f]}))["elements"][0]["role"], "brace");
+    let slab = run(&mut s, "element.list", json!({"kind": "sections"}))["items"][2]["id"].clone();
+    assert!(s.execute("frame.set", json!({"frames": [f], "section": slab})).is_err());
+    let a = run(&mut s, "area.draw", json!({"polygons": [[[0, 0, 0], [1, 0, 0], [1, 0, 3]]]}))["areas"][0].clone();
+    run(&mut s, "area.set", json!({"areas": [a], "role": "wall"}));
+    assert_eq!(run(&mut s, "element.get", json!({"ids": [a]}))["elements"][0]["role"], "wall");
+}

@@ -18,5 +18,18 @@ Measured on the Linux CI container (release build), 2026-10-30:
 
 The model holds about 220 MB for these 2.5 million elements.
 
-Known costs to revisit: deleting a node scans every frame and area for what uses it (12 ms
-here); a node-to-element adjacency list would make it constant.
+## Viewport
+
+At 70 x 70 bays and 60 stories (307,501 nodes, 898,860 frames, 294,000 slabs), packing the
+GPU buffers takes 49 ms (63 MB of vertex data). That happens once per edit, not per frame; a
+frame writes one 80-byte uniform and issues three instanced draws. The desktop app opens and
+draws this model; the status bar shows the last packing time.
+
+Frame rates on real GPUs are not measured yet: CI and the development container render with
+a software rasteriser.
+
+Known costs to revisit:
+- Deleting a node scans every frame and area for what uses it (12 ms here); a
+  node-to-element adjacency list would make it constant.
+- Every edit repacks the whole GPU scene (about 50 ms at 300,000 nodes). Updating only the
+  changed slots would make edits on large models instant.

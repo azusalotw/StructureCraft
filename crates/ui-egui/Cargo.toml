@@ -13,7 +13,11 @@ workspace = true
 structurecraft-engine = { workspace = true }
 structurecraft-geom = { workspace = true }
 structurecraft-render = { workspace = true }
-eframe = { workspace = true }
+structurecraft-model = { workspace = true }
+structurecraft-gpu = { workspace = true }
+egui-wgpu = { workspace = true }
+web-time = { workspace = true }
+eframe = { workspace = true, features = ["wgpu"] }
 egui = { workspace = true }
 log = { workspace = true }
 serde_json = { workspace = true }

@@ -19,6 +19,7 @@ commands:
 const WASM_PACKAGES: &[&str] = &[
     "structurecraft-engine",
     "structurecraft-geom",
+    "structurecraft-gpu",
     "structurecraft-io",
     "structurecraft-mcp",
     "structurecraft-model",
