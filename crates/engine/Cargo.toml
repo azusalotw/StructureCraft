@@ -1,0 +1,17 @@
+[package]
+name = "structurecraft-engine"
+description = "StructureCraft session and command registry: everything the UI, CLI and MCP server do is a command"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+structurecraft-model = { workspace = true }
+structurecraft-io = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

@@ -1,0 +1,64 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/*", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.88"
+authors = ["StructureCraft contributors"]
+repository = "https://github.com/azusalotw/StructureCraft"
+
+[workspace.dependencies]
+# internal
+structurecraft-geom = { path = "crates/geom" }
+structurecraft-render = { path = "crates/render" }
+structurecraft-model = { path = "crates/model" }
+structurecraft-io = { path = "crates/io" }
+structurecraft-engine = { path = "crates/engine" }
+structurecraft-ui-egui = { path = "crates/ui-egui" }
+structurecraft-mcp = { path = "crates/mcp" }
+
+# foundation
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+log = "0.4"
+
+# math (f64 throughout the model; f32 only on the GPU side)
+glam = { version = "0.30", features = ["serde"] }
+
+# ui
+egui = "0.33"
+eframe = { version = "0.33", default-features = false }
+web-time = "1"
+# the wgpu eframe draws with; the apps choose its backends
+wgpu = { version = "27", default-features = false, features = ["std", "wgsl"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+# Never crash: errors are `Result`, input is hostile (clippy.toml allows these in tests).
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+too_many_arguments = "allow"
+type_complexity = "allow"
+# `!(x > tol)` is our idiom for "not a usable number" (NaN-safe).
+neg_cmp_op_on_partial_ord = "allow"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 16
+debug = "line-tables-only"

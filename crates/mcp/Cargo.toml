@@ -1,0 +1,14 @@
+[package]
+name = "structurecraft-mcp"
+description = "StructureCraft MCP server: the command registry as Model Context Protocol tools"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+structurecraft-engine = { workspace = true }
+serde_json = { workspace = true }

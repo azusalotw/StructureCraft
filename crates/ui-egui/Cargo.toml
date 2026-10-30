@@ -1,0 +1,19 @@
+[package]
+name = "structurecraft-ui-egui"
+description = "StructureCraft user interface (egui): the swappable front end shared by the desktop and browser apps"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+structurecraft-engine = { workspace = true }
+structurecraft-geom = { workspace = true }
+structurecraft-render = { workspace = true }
+eframe = { workspace = true }
+egui = { workspace = true }
+log = { workspace = true }
+serde_json = { workspace = true }

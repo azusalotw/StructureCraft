@@ -1,0 +1,15 @@
+[package]
+name = "structurecraft-cli"
+description = "StructureCraft headless CLI: run commands and the MCP server without a window"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+structurecraft-engine = { workspace = true }
+structurecraft-mcp = { workspace = true }
+serde_json = { workspace = true }
