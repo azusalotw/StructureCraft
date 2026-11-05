@@ -5,8 +5,12 @@ use std::collections::HashSet;
 
 use structurecraft_geom::DVec3;
 
+use crate::loads::{MAX_LOAD, MAX_TERMS};
 use crate::spatial::MERGE_TOLERANCE;
-use crate::{AREA_CORNERS, Area, Frame, Grid, Id, MAX_COORDINATE, Material, Model, Node, Section, SlotError, Table, Units};
+use crate::{
+    AREA_CORNERS, Area, AreaLoad, Combination, Frame, FrameLoad, FrameLoadShape, Grid, Id, LoadCase, LoadPattern, MAX_COORDINATE, Material, Model,
+    Node, NodeLoad, Section, SlotError, Table, Units,
+};
 
 /// An edit of one table.
 #[derive(Debug, Clone, PartialEq)]
@@ -27,6 +31,12 @@ pub enum Change {
     Areas(Op<Area>),
     Materials(Op<Material>),
     Sections(Op<Section>),
+    Patterns(Op<LoadPattern>),
+    Cases(Op<LoadCase>),
+    Combinations(Op<Combination>),
+    NodeLoads(Op<NodeLoad>),
+    FrameLoads(Op<FrameLoad>),
+    AreaLoads(Op<AreaLoad>),
     Grid(Grid),
     Name(String),
     Units(Units),
@@ -92,6 +102,9 @@ pub(crate) fn check_frame(m: &Model, f: &Frame) -> Result<(), ModelError> {
     if !f.angle.is_finite() {
         return invalid("frame angle must be finite");
     }
+    if !f.releases.is_valid() {
+        return invalid("a frame cannot release its axial force or torsion at both ends");
+    }
     section_of(m, f.section, false)
 }
 
@@ -138,6 +151,94 @@ pub(crate) fn check_section(m: &Model, s: &Section) -> Result<(), ModelError> {
     Ok(())
 }
 
+fn check_name(what: &str, name: &str) -> Result<(), ModelError> {
+    if name.trim().is_empty() { invalid(format!("a {what} needs a name")) } else { Ok(()) }
+}
+
+fn check_value(v: f64) -> Result<(), ModelError> {
+    if v.is_finite() && v.abs() <= MAX_LOAD { Ok(()) } else { invalid(format!("load value {v} is not finite or above {MAX_LOAD:e}")) }
+}
+
+fn check_terms<T: Kind>(m: &Model, terms: &[(Id<T>, f64)]) -> Result<(), ModelError> {
+    if terms.len() > MAX_TERMS {
+        return invalid(format!("at most {MAX_TERMS} terms"));
+    }
+    for (id, factor) in terms {
+        if !T::table(m).contains(*id) {
+            return Err(ModelError::Missing { kind: T::NAME, index: id.index() });
+        }
+        if !(factor.is_finite() && factor.abs() <= 1e6) {
+            return invalid(format!("factor {factor} is not finite or above 1e6"));
+        }
+    }
+    Ok(())
+}
+
+fn live<T: Kind>(m: &Model, id: Id<T>) -> Result<(), ModelError> {
+    if T::table(m).contains(id) { Ok(()) } else { Err(ModelError::Missing { kind: T::NAME, index: id.index() }) }
+}
+
+pub(crate) fn check_pattern(p: &LoadPattern) -> Result<(), ModelError> {
+    check_name("load pattern", &p.name)?;
+    if !(p.self_weight.is_finite() && p.self_weight.abs() <= 1e3) {
+        return invalid("self-weight factor must be finite and at most 1000");
+    }
+    Ok(())
+}
+
+pub(crate) fn check_case(m: &Model, c: &LoadCase) -> Result<(), ModelError> {
+    check_name("load case", &c.name)?;
+    check_terms(m, &c.patterns)
+}
+
+pub(crate) fn check_combination(m: &Model, c: &Combination) -> Result<(), ModelError> {
+    check_name("load combination", &c.name)?;
+    check_terms(m, &c.cases)
+}
+
+pub(crate) fn check_node_load(m: &Model, l: &NodeLoad) -> Result<(), ModelError> {
+    live(m, l.node)?;
+    live(m, l.pattern)?;
+    l.values.iter().try_for_each(|v| check_value(*v))
+}
+
+pub(crate) fn check_frame_load(m: &Model, l: &FrameLoad) -> Result<(), ModelError> {
+    live(m, l.frame)?;
+    live(m, l.pattern)?;
+    check_value(l.value_start)?;
+    check_value(l.value_end)?;
+    let inside = |t: f64| (0.0..=1.0).contains(&t);
+    let ok = match l.shape {
+        FrameLoadShape::Distributed => inside(l.start) && inside(l.end) && l.start < l.end,
+        FrameLoadShape::Point => inside(l.start),
+    };
+    if ok { Ok(()) } else { invalid("frame load positions must be fractions of the length, 0 to 1, start before end") }
+}
+
+pub(crate) fn check_area_load(m: &Model, l: &AreaLoad) -> Result<(), ModelError> {
+    live(m, l.area)?;
+    live(m, l.pattern)?;
+    check_value(l.pressure)
+}
+
+/// Refuse when a row of `table` still refers to one of `ids` through `refers`.
+fn refused_if_used<T, R>(
+    ids: &[Id<T>],
+    table: &Table<R>,
+    refers: impl Fn(&R) -> Id<T>,
+    kind: &'static str,
+    by: &'static str,
+) -> Result<(), ModelError> {
+    if table.is_empty() {
+        return Ok(());
+    }
+    let ids: HashSet<_> = ids.iter().collect();
+    match table.iter().map(|(_, r)| refers(r)).find(|id| ids.contains(id)) {
+        Some(id) => Err(ModelError::InUse { kind, index: id.index(), by }),
+        None => Ok(()),
+    }
+}
+
 impl Kind for Node {
     const NAME: &'static str = "node";
     fn table(m: &Model) -> &Table<Self> {
@@ -150,10 +251,10 @@ impl Kind for Node {
         check_node(row)
     }
     fn check_remove(m: &Model, ids: &[Id<Self>]) -> Result<(), ModelError> {
-        match ids.iter().find(|id| m.node_uses(**id) > 0) {
-            Some(id) => Err(ModelError::InUse { kind: Self::NAME, index: id.index(), by: "frames or areas" }),
-            None => Ok(()),
+        if let Some(id) = ids.iter().find(|id| m.node_uses(**id) > 0) {
+            return Err(ModelError::InUse { kind: Self::NAME, index: id.index(), by: "frames or areas" });
         }
+        refused_if_used(ids, &m.node_loads, |l| l.node, Self::NAME, "node loads")
     }
     fn added(m: &mut Model, id: Id<Self>, row: &Self) {
         m.index.insert(id, row.position);
@@ -178,8 +279,8 @@ impl Kind for Frame {
     fn check(m: &Model, row: &Self) -> Result<(), ModelError> {
         check_frame(m, row)
     }
-    fn check_remove(_m: &Model, _ids: &[Id<Self>]) -> Result<(), ModelError> {
-        Ok(())
+    fn check_remove(m: &Model, ids: &[Id<Self>]) -> Result<(), ModelError> {
+        refused_if_used(ids, &m.frame_loads, |l| l.frame, Self::NAME, "frame loads")
     }
     fn added(m: &mut Model, _id: Id<Self>, row: &Self) {
         m.use_nodes([row.i, row.j], 1);
@@ -200,8 +301,8 @@ impl Kind for Area {
     fn check(m: &Model, row: &Self) -> Result<(), ModelError> {
         check_area(m, row)
     }
-    fn check_remove(_m: &Model, _ids: &[Id<Self>]) -> Result<(), ModelError> {
-        Ok(())
+    fn check_remove(m: &Model, ids: &[Id<Self>]) -> Result<(), ModelError> {
+        refused_if_used(ids, &m.area_loads, |l| l.area, Self::NAME, "area loads")
     }
     fn added(m: &mut Model, _id: Id<Self>, row: &Self) {
         m.use_nodes(row.corners.iter().copied(), 1);
@@ -251,6 +352,113 @@ impl Kind for Section {
             Some((_, a)) => Err(ModelError::InUse { kind: Self::NAME, index: a.section.index(), by: "areas" }),
             None => Ok(()),
         }
+    }
+}
+
+impl Kind for LoadPattern {
+    const NAME: &'static str = "load pattern";
+    fn table(m: &Model) -> &Table<Self> {
+        &m.patterns
+    }
+    fn table_mut(m: &mut Model) -> &mut Table<Self> {
+        &mut m.patterns
+    }
+    fn check(_m: &Model, row: &Self) -> Result<(), ModelError> {
+        check_pattern(row)
+    }
+    fn check_remove(m: &Model, ids: &[Id<Self>]) -> Result<(), ModelError> {
+        refused_if_used(ids, &m.node_loads, |l| l.pattern, Self::NAME, "node loads")?;
+        refused_if_used(ids, &m.frame_loads, |l| l.pattern, Self::NAME, "frame loads")?;
+        refused_if_used(ids, &m.area_loads, |l| l.pattern, Self::NAME, "area loads")?;
+        let set: HashSet<_> = ids.iter().collect();
+        match m.cases.iter().flat_map(|(_, c)| c.patterns.iter()).find(|(p, _)| set.contains(p)) {
+            Some((p, _)) => Err(ModelError::InUse { kind: Self::NAME, index: p.index(), by: "load cases" }),
+            None => Ok(()),
+        }
+    }
+}
+
+impl Kind for LoadCase {
+    const NAME: &'static str = "load case";
+    fn table(m: &Model) -> &Table<Self> {
+        &m.cases
+    }
+    fn table_mut(m: &mut Model) -> &mut Table<Self> {
+        &mut m.cases
+    }
+    fn check(m: &Model, row: &Self) -> Result<(), ModelError> {
+        check_case(m, row)
+    }
+    fn check_remove(m: &Model, ids: &[Id<Self>]) -> Result<(), ModelError> {
+        let set: HashSet<_> = ids.iter().collect();
+        match m.combinations.iter().flat_map(|(_, c)| c.cases.iter()).find(|(c, _)| set.contains(c)) {
+            Some((c, _)) => Err(ModelError::InUse { kind: Self::NAME, index: c.index(), by: "load combinations" }),
+            None => Ok(()),
+        }
+    }
+}
+
+impl Kind for Combination {
+    const NAME: &'static str = "load combination";
+    fn table(m: &Model) -> &Table<Self> {
+        &m.combinations
+    }
+    fn table_mut(m: &mut Model) -> &mut Table<Self> {
+        &mut m.combinations
+    }
+    fn check(m: &Model, row: &Self) -> Result<(), ModelError> {
+        check_combination(m, row)
+    }
+    fn check_remove(_m: &Model, _ids: &[Id<Self>]) -> Result<(), ModelError> {
+        Ok(())
+    }
+}
+
+impl Kind for NodeLoad {
+    const NAME: &'static str = "node load";
+    fn table(m: &Model) -> &Table<Self> {
+        &m.node_loads
+    }
+    fn table_mut(m: &mut Model) -> &mut Table<Self> {
+        &mut m.node_loads
+    }
+    fn check(m: &Model, row: &Self) -> Result<(), ModelError> {
+        check_node_load(m, row)
+    }
+    fn check_remove(_m: &Model, _ids: &[Id<Self>]) -> Result<(), ModelError> {
+        Ok(())
+    }
+}
+
+impl Kind for FrameLoad {
+    const NAME: &'static str = "frame load";
+    fn table(m: &Model) -> &Table<Self> {
+        &m.frame_loads
+    }
+    fn table_mut(m: &mut Model) -> &mut Table<Self> {
+        &mut m.frame_loads
+    }
+    fn check(m: &Model, row: &Self) -> Result<(), ModelError> {
+        check_frame_load(m, row)
+    }
+    fn check_remove(_m: &Model, _ids: &[Id<Self>]) -> Result<(), ModelError> {
+        Ok(())
+    }
+}
+
+impl Kind for AreaLoad {
+    const NAME: &'static str = "area load";
+    fn table(m: &Model) -> &Table<Self> {
+        &m.area_loads
+    }
+    fn table_mut(m: &mut Model) -> &mut Table<Self> {
+        &mut m.area_loads
+    }
+    fn check(m: &Model, row: &Self) -> Result<(), ModelError> {
+        check_area_load(m, row)
+    }
+    fn check_remove(_m: &Model, _ids: &[Id<Self>]) -> Result<(), ModelError> {
+        Ok(())
     }
 }
 
@@ -351,6 +559,12 @@ impl Model {
             Change::Areas(op) => Change::Areas(apply_op(self, op)?),
             Change::Materials(op) => Change::Materials(apply_op(self, op)?),
             Change::Sections(op) => Change::Sections(apply_op(self, op)?),
+            Change::Patterns(op) => Change::Patterns(apply_op(self, op)?),
+            Change::Cases(op) => Change::Cases(apply_op(self, op)?),
+            Change::Combinations(op) => Change::Combinations(apply_op(self, op)?),
+            Change::NodeLoads(op) => Change::NodeLoads(apply_op(self, op)?),
+            Change::FrameLoads(op) => Change::FrameLoads(apply_op(self, op)?),
+            Change::AreaLoads(op) => Change::AreaLoads(apply_op(self, op)?),
             Change::Grid(grid) => Change::Grid(self.set_grid(grid)?),
             Change::Name(name) => Change::Name(std::mem::replace(&mut self.name, name)),
             Change::Units(units) => Change::Units(std::mem::replace(&mut self.display_units, units)),
@@ -383,7 +597,7 @@ mod tests {
         let mut m = Model::new("t");
         let ids = add_nodes(&mut m, vec![node(0.0, 0.0, 0.0), node(0.0, 0.0, 3.0)]);
         let before = m.clone();
-        let frame = Frame { i: ids[0], j: ids[1], section: section(&m, "Column"), role: FrameRole::Column, angle: 0.0 };
+        let frame = Frame { i: ids[0], j: ids[1], section: section(&m, "Column"), role: FrameRole::Column, ..Frame::default() };
         let undo = m.apply(Change::Frames(Op::Add(vec![frame]))).unwrap();
         let after = m.clone();
         assert_eq!(m.node_uses(ids[0]), 1);
@@ -430,6 +644,51 @@ mod tests {
         let triangle = Area { corners: ids.iter().copied().collect(), section: slab, ..Area::default() };
         m.apply(Change::Areas(Op::Add(vec![triangle]))).unwrap();
         assert_eq!(m.node_uses(ids[2]), 1);
+    }
+
+    #[test]
+    fn loads_check_their_references_and_hold_what_they_load() {
+        let mut m = Model::new("t");
+        let ids = add_nodes(&mut m, vec![node(0.0, 0.0, 0.0), node(6.0, 0.0, 0.0)]);
+        let beam = section(&m, "Beam");
+        let Ok(Change::Frames(Op::Remove(frames))) =
+            m.apply(Change::Frames(Op::Add(vec![Frame { i: ids[0], j: ids[1], section: beam, ..Frame::default() }])))
+        else {
+            panic!()
+        };
+        let dead = m.patterns().ids().next().unwrap();
+        let udl = FrameLoad { frame: frames[0], pattern: dead, end: 1.0, value_start: 1e4, value_end: 1e4, ..FrameLoad::default() };
+        m.apply(Change::FrameLoads(Op::Add(vec![udl]))).unwrap();
+        for bad in [
+            FrameLoad { start: 0.5, end: 0.5, ..udl },
+            FrameLoad { end: 1.5, ..udl },
+            FrameLoad { value_start: f64::NAN, ..udl },
+            FrameLoad { frame: Id::new(9, 1), ..udl },
+            FrameLoad { pattern: Id::new(9, 1), ..udl },
+        ] {
+            assert!(m.apply(Change::FrameLoads(Op::Add(vec![bad]))).is_err(), "{bad:?}");
+        }
+        assert!(matches!(m.apply(Change::Frames(Op::Remove(frames.clone()))), Err(ModelError::InUse { .. })));
+        assert!(matches!(m.apply(Change::Patterns(Op::Remove(vec![dead]))), Err(ModelError::InUse { .. })));
+        let on = m.loads_on(&[], &frames, &[], None);
+        assert_eq!(on.frame_loads.len(), 1);
+        assert!(m.loads_on(&[], &frames, &[], Some(Id::new(1, 1))).frame_loads.is_empty());
+        m.apply(Change::FrameLoads(Op::Remove(on.frame_loads))).unwrap();
+        m.apply(Change::Frames(Op::Remove(frames))).unwrap();
+    }
+
+    #[test]
+    fn releases_that_leave_a_mechanism_are_refused() {
+        let mut m = Model::new("t");
+        let ids = add_nodes(&mut m, vec![node(0.0, 0.0, 0.0), node(6.0, 0.0, 0.0)]);
+        let f = Frame { i: ids[0], j: ids[1], section: section(&m, "Beam"), ..Frame::default() };
+        let pinned = Frame { releases: crate::Releases::new(crate::Releases::MOMENTS, crate::Releases::MOMENTS), ..f };
+        m.apply(Change::Frames(Op::Add(vec![pinned]))).unwrap();
+        for bits in [crate::Releases::P, crate::Releases::T] {
+            let spinning = Frame { releases: crate::Releases::new(bits, bits), ..f };
+            assert!(m.apply(Change::Frames(Op::Add(vec![spinning]))).is_err());
+        }
+        assert!(m.apply(Change::Frames(Op::Add(vec![Frame { releases: crate::Releases(1 << 13), ..f }]))).is_err());
     }
 
     #[test]

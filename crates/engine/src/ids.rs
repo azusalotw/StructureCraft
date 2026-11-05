@@ -2,7 +2,7 @@
 //! e.g. `N12:1` for node slot 12. The generation makes an id from before a delete fail loudly
 //! instead of naming whatever reused the slot.
 
-use structurecraft_model::{Area, Frame, Id, Material, Node, Section};
+use structurecraft_model::{Area, Combination, Frame, Id, LoadCase, LoadPattern, Material, Node, Section};
 
 pub trait ElementRef {
     const PREFIX: char;
@@ -22,6 +22,15 @@ impl ElementRef for Material {
 }
 impl ElementRef for Section {
     const PREFIX: char = 'S';
+}
+impl ElementRef for LoadPattern {
+    const PREFIX: char = 'P';
+}
+impl ElementRef for LoadCase {
+    const PREFIX: char = 'C';
+}
+impl ElementRef for Combination {
+    const PREFIX: char = 'K';
 }
 
 pub fn format_id<T: ElementRef>(id: Id<T>) -> String {

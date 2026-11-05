@@ -4,6 +4,7 @@ mod draw;
 mod edit;
 mod generate;
 mod library;
+mod loads;
 mod model;
 mod query;
 
@@ -34,6 +35,14 @@ static REGISTRY: &[CommandSpec] = &[
     CommandSpec { id: "frame.set", summary: edit::FRAME_SET_SUMMARY, input_schema: edit::frame_set_schema, run: edit::frame_set },
     CommandSpec { id: "generate.building", summary: generate::SUMMARY, input_schema: generate::schema, run: generate::building },
     CommandSpec { id: "grid.set", summary: library::GRID_SUMMARY, input_schema: library::grid_schema, run: library::grid },
+    CommandSpec { id: "load.area", summary: loads::AREA_SUMMARY, input_schema: loads::area_schema, run: loads::area },
+    CommandSpec { id: "load.case.set", summary: loads::CASE_SET_SUMMARY, input_schema: loads::case_set_schema, run: loads::case_set },
+    CommandSpec { id: "load.combination.set", summary: loads::COMBO_SET_SUMMARY, input_schema: loads::combo_set_schema, run: loads::combo_set },
+    CommandSpec { id: "load.delete", summary: loads::DELETE_SUMMARY, input_schema: loads::delete_schema, run: loads::delete },
+    CommandSpec { id: "load.frame", summary: loads::FRAME_SUMMARY, input_schema: loads::frame_schema, run: loads::frame },
+    CommandSpec { id: "load.list", summary: loads::LIST_SUMMARY, input_schema: loads::list_schema, run: loads::list },
+    CommandSpec { id: "load.node", summary: loads::NODE_SUMMARY, input_schema: loads::node_schema, run: loads::node },
+    CommandSpec { id: "load.pattern.add", summary: loads::PATTERN_ADD_SUMMARY, input_schema: loads::pattern_add_schema, run: loads::pattern_add },
     CommandSpec { id: "material.add", summary: library::MATERIAL_SUMMARY, input_schema: library::material_schema, run: library::material },
     CommandSpec { id: "model.info", summary: model::INFO_SUMMARY, input_schema: empty_schema, run: model::info },
     CommandSpec { id: "model.new", summary: model::NEW_SUMMARY, input_schema: model::new_schema, run: model::new },
@@ -95,6 +104,10 @@ impl From<&str> for Ref {
 }
 
 impl Ref {
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+
     pub(crate) fn id<T: ElementRef>(&self) -> Result<Id<T>, CommandError> {
         parse_id(&self.0).ok_or_else(|| CommandError::InvalidInput(format!("`{}` is not a {} id", self.0, T::PREFIX)))
     }
