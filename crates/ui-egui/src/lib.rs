@@ -4,6 +4,7 @@
 //! a status bar and the 3D viewport in the middle. Every edit runs a registry command on the
 //! session, so the UI does exactly what the CLI and MCP server can.
 
+mod files;
 mod navigation;
 mod panels;
 mod picking;
@@ -37,6 +38,7 @@ pub struct StructureCraftApp {
     cache: picking::ScreenCache,
     tools: tools::ToolState,
     generate: Option<panels::GenerateForm>,
+    files: files::Files,
 }
 
 impl Default for StructureCraftApp {
@@ -56,6 +58,7 @@ impl Default for StructureCraftApp {
             cache: picking::ScreenCache::default(),
             tools: tools::ToolState::default(),
             generate: None,
+            files: files::Files::default(),
         }
     }
 }
@@ -76,11 +79,10 @@ impl StructureCraftApp {
         app
     }
 
-    /// Open a model file, as if from File > Open.
+    /// Open a model file, as if from File > Open (without asking about unsaved changes).
     pub fn open(&mut self, path: &str) {
         if self.run("model.open", serde_json::json!({"path": path})).is_some() {
-            self.tools.story = self.session.model.grid().stories.len().saturating_sub(1);
-            self.fit();
+            self.opened(path.to_owned());
         }
     }
 
@@ -110,9 +112,10 @@ impl StructureCraftApp {
     }
 
     fn shortcuts(&mut self, ctx: &egui::Context) {
-        if ctx.wants_keyboard_input() {
+        if ctx.wants_keyboard_input() || self.files.asking() {
             return;
         }
+        self.file_shortcuts(ctx);
         use egui::{Key, KeyboardShortcut as K, Modifiers as M};
         let (undo, redo, delete, escape, fit, enter) = ctx.input_mut(|i| {
             let redo = i.consume_shortcut(&K::new(M::COMMAND | M::SHIFT, Key::Z)) || i.consume_shortcut(&K::new(M::COMMAND, Key::Y));
@@ -163,6 +166,7 @@ impl StructureCraftApp {
 
     /// The whole window; the one outer container every host draws.
     pub fn ui(&mut self, ctx: &egui::Context) {
+        self.files_frame(ctx);
         self.shortcuts(ctx);
         self.menu_bar(ctx);
         self.tool_bar(ctx);

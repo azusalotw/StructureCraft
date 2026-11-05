@@ -4,9 +4,18 @@ use serde_json::{Value, json};
 use structurecraft_engine::format_id;
 use structurecraft_model::{FrameRole, Restraint, SectionId};
 
+use crate::files::Action;
 use crate::navigation::{self, Preset};
 use crate::tools::Tool;
 use crate::{StructureCraftApp, theme};
+
+#[derive(Clone, Copy)]
+enum FileMenu {
+    New,
+    Open,
+    Save,
+    SaveAs,
+}
 
 /// The Generate building window's fields.
 pub struct GenerateForm {
@@ -39,12 +48,31 @@ impl StructureCraftApp {
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
-                    if ui.button("New model").clicked() {
-                        self.run("model.new", Value::Null);
-                        self.selection.clear();
-                        self.tools.story = 0;
-                        self.camera = Default::default();
-                        ui.close();
+                    let command = |key: &str| if cfg!(target_os = "macos") { format!("⌘{key}") } else { format!("Ctrl+{key}") };
+                    let entries = [
+                        ("New model", command("N"), FileMenu::New),
+                        ("Open…", command("O"), FileMenu::Open),
+                        ("Save", command("S"), FileMenu::Save),
+                        ("Save as…", command("Shift+S"), FileMenu::SaveAs),
+                    ];
+                    for (label, shortcut, entry) in entries {
+                        if ui.add(egui::Button::new(label).shortcut_text(shortcut)).clicked() {
+                            ui.close();
+                            match entry {
+                                FileMenu::New => self.request(Action::New),
+                                FileMenu::Open => self.request(Action::Open),
+                                FileMenu::Save => self.save(None),
+                                FileMenu::SaveAs => self.save_as(None),
+                            }
+                        }
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        ui.separator();
+                        if ui.button("Quit").clicked() {
+                            ui.close();
+                            self.request(Action::Quit);
+                        }
                     }
                 });
                 ui.menu_button("Edit", |ui| {

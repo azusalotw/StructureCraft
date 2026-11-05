@@ -19,6 +19,9 @@ macOS and Linux, in the browser, and AI agents can model through its built-in MC
   the first corner, a double-click or Enter). Points snap to nodes and grid intersections.
 - **Edit:** Delete removes the selection, Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z redoes. The
   Properties panel changes supports, sections and frame roles.
+- **Files:** File > New, Open, Save and Save as (Ctrl/Cmd+N, O, S, Shift+S) read and write
+  `.stc` files; the title bar marks unsaved changes with `*`, and New, Open and Quit ask before
+  dropping them. In the browser, Open uploads a file and Save downloads one.
 - **Start a model:** Model > Generate building, or `structurecraft path/to/model.stc`.
 
 ## Build

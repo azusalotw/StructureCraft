@@ -63,13 +63,13 @@ struct PathInput {
 pub fn open(session: &mut Session, input: Value) -> Result<Value, CommandError> {
     let PathInput { path } = parse(input)?;
     let bytes = std::fs::read(&path).map_err(|e| CommandError::Io(format!("cannot read {path}: {e}")))?;
-    session.replace_model(structurecraft_io::from_bytes(&bytes)?);
+    session.open_bytes(&bytes)?;
     info(session, Value::Null)
 }
 
 pub fn save(session: &mut Session, input: Value) -> Result<Value, CommandError> {
     let PathInput { path } = parse(input)?;
-    let bytes = structurecraft_io::to_bytes(&session.model)?;
+    let bytes = session.save_bytes()?;
     std::fs::write(&path, &bytes).map_err(|e| CommandError::Io(format!("cannot write {path}: {e}")))?;
     session.dirty = false;
     Ok(json!({"path": path, "bytes": bytes.len()}))

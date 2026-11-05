@@ -38,6 +38,8 @@ glam = { version = "0.30", features = ["serde"] }
 egui = "0.33"
 eframe = { version = "0.33", default-features = false }
 web-time = "1"
+# native file dialogs (no GTK: the Linux backend talks to the desktop portal); browser pickers on wasm
+rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
 egui-wgpu = { version = "0.33", default-features = false }
 # the wgpu eframe draws with; the apps choose its backends
 wgpu = { version = "27", default-features = false, features = ["std", "wgsl"] }
