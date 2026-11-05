@@ -139,6 +139,21 @@ fn save_and_open() {
 }
 
 #[test]
+fn bytes_round_trip_and_garbage_keeps_the_model() {
+    let mut s = Session::new();
+    run(&mut s, "generate.building", json!({"bays_x": 2, "bays_y": 1, "stories": 1}));
+    let bytes = s.save_bytes().unwrap();
+    let mut t = Session::new();
+    t.open_bytes(&bytes).unwrap();
+    assert_eq!(t.model, s.model);
+    assert!(!t.dirty);
+    let before = s.model.clone();
+    assert!(s.open_bytes(&bytes[..bytes.len() / 2]).is_err());
+    assert_eq!(s.model, before);
+    assert!(s.dirty);
+}
+
+#[test]
 fn sections_and_materials() {
     let mut s = Session::new();
     let m =

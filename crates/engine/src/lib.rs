@@ -137,6 +137,18 @@ impl Session {
         self.revision = revision;
     }
 
+    /// Replace the model with one read from `.stc` bytes (`model.open` without the file system,
+    /// for hosts such as the browser that hand over bytes).
+    pub fn open_bytes(&mut self, bytes: &[u8]) -> Result<(), CommandError> {
+        self.replace_model(structurecraft_io::from_bytes(bytes)?);
+        Ok(())
+    }
+
+    /// The model as `.stc` bytes. The caller marks the session clean once they are written.
+    pub fn save_bytes(&self) -> Result<Vec<u8>, CommandError> {
+        Ok(structurecraft_io::to_bytes(&self.model)?)
+    }
+
     /// Changes whenever the model does, so views rebuild only then.
     pub fn revision(&self) -> u64 {
         self.revision

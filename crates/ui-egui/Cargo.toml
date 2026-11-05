@@ -20,4 +20,8 @@ web-time = { workspace = true }
 eframe = { workspace = true, features = ["wgpu"] }
 egui = { workspace = true }
 log = { workspace = true }
+rfd = { workspace = true }
 serde_json = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4"
