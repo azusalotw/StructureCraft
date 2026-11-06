@@ -29,6 +29,8 @@ pub(crate) struct LoadsState {
     new_pattern: String,
     new_kind: PatternKind,
     new_self_weight: f64,
+    new_case: String,
+    case_factors: Vec<f64>,
     new_combo: String,
     combo_kind: CombinationKind,
     combo_factors: Vec<f64>,
@@ -52,6 +54,8 @@ impl Default for LoadsState {
             new_pattern: String::new(),
             new_kind: PatternKind::Live,
             new_self_weight: 0.0,
+            new_case: String::new(),
+            case_factors: Vec::new(),
             new_combo: String::new(),
             combo_kind: CombinationKind::Linear,
             combo_factors: Vec::new(),
@@ -214,8 +218,39 @@ impl StructureCraftApp {
             if let Some(id) = delete {
                 self.run("load.delete", json!({"cases": [format_id(id)]}));
             }
+            self.new_case_form(ui);
         });
         ui.collapsing("Load combinations", |ui| self.combinations_tree(ui));
+    }
+
+    /// A new case: a name and a factor for each pattern.
+    fn new_case_form(&mut self, ui: &mut egui::Ui) {
+        let patterns: Vec<_> = self.session.model.patterns().iter().map(|(id, p)| (id, p.name.clone())).collect();
+        ui.separator();
+        let s = &mut self.loads;
+        s.case_factors.resize(patterns.len(), 0.0);
+        ui.add(egui::TextEdit::singleline(&mut s.new_case).hint_text("New load case").desired_width(110.0));
+        egui::Grid::new("case_factors").num_columns(2).show(ui, |ui| {
+            for ((_, name), factor) in patterns.iter().zip(s.case_factors.iter_mut()) {
+                ui.label(name);
+                ui.add(egui::DragValue::new(factor).range(-100.0..=100.0).speed(0.05).max_decimals(3));
+                ui.end_row();
+            }
+        });
+        let terms: Vec<Value> = patterns
+            .iter()
+            .zip(&s.case_factors)
+            .filter(|(_, f)| **f != 0.0)
+            .map(|((id, _), f)| json!({"pattern": format_id(*id), "factor": f}))
+            .collect();
+        let ready = !s.new_case.trim().is_empty() && !terms.is_empty();
+        if ui.add_enabled(ready, egui::Button::new("Add load case")).on_hover_text("Patterns with a factor other than 0").clicked() {
+            let input = json!({"name": s.new_case.trim(), "patterns": terms});
+            if self.run("load.case.set", input).is_some() {
+                self.loads.new_case.clear();
+                self.loads.case_factors.iter_mut().for_each(|f| *f = 0.0);
+            }
+        }
     }
 
     fn combinations_tree(&mut self, ui: &mut egui::Ui) {
