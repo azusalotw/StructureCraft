@@ -17,6 +17,7 @@ const PALETTE: structurecraft_gpu::Palette = structurecraft_gpu::Palette {
     wall: [255; 4],
     selected: [255; 4],
     selected_area: [255; 4],
+    load: [255; 4],
 };
 
 fn timed<T>(label: &str, f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
@@ -69,5 +70,21 @@ pub fn run(bays: Option<&str>, stories: Option<&str>) -> Result<(), String> {
     timed("undo draw", || exec(&mut s, "edit.undo", json!({})))?;
     timed("undo generate", || exec(&mut s, "edit.undo", json!({})))?;
     timed("redo generate", || exec(&mut s, "edit.redo", json!({})))?;
+
+    let frames: Vec<String> = s.model.frames().ids().map(format_id).collect();
+    let areas: Vec<String> = s.model.areas().ids().map(format_id).collect();
+    timed("load every frame (Dead, 10 kN/m)", || exec(&mut s, "load.frame", json!({"frames": frames, "pattern": "Dead", "value": 10e3})))?;
+    timed("load every slab (Live, 3 kPa)", || exec(&mut s, "load.area", json!({"areas": areas, "pattern": "Live", "pressure": 3e3})))?;
+    let dead = s.model.patterns().ids().next().ok_or("no Dead pattern")?;
+    let arrows = timed("pack the Dead load arrows", || {
+        let origin = s.model.bounds().center().unwrap_or_default();
+        Ok(structurecraft_gpu::SceneBuilder { model: &s.model, palette: PALETTE, origin }.loads(dead, 1))
+    })?;
+    println!("  {:.1} MB of vertex data", arrows.lines.len() as f64 / 1e6);
+    drop(arrows);
+    let bytes = timed("save with loads", || structurecraft_io::to_bytes(&s.model).map_err(|e| e.to_string()))?;
+    println!("  {:.1} MB", bytes.len() as f64 / 1e6);
+    timed("open with loads", || structurecraft_io::from_bytes(&bytes).map_err(|e| e.to_string()))?;
+    drop(bytes);
     Ok(())
 }

@@ -18,7 +18,12 @@ macOS and Linux, in the browser, and AI agents can model through its built-in MC
   (click a plan point: from the story below to the working story), Slab (click corners, then
   the first corner, a double-click or Enter). Points snap to nodes and grid intersections.
 - **Edit:** Delete removes the selection, Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z redoes. The
-  Properties panel changes supports, sections and frame roles.
+  Properties panel changes supports, sections, frame roles and pinned frame ends.
+- **Loads:** the model panel lists load patterns (a new model has Dead, with self-weight, and
+  Live), load cases and combinations, and adds or deletes them. Select elements, pick a
+  pattern in the Properties panel and assign forces to nodes (kN, kN·m), uniform loads to
+  frames (kN/m, gravity, global or local direction) or pressure to slabs (kPa). The Loads
+  picker in the tool bar draws one pattern's loads as arrows.
 - **Files:** File > New, Open, Save and Save as (Ctrl/Cmd+N, O, S, Shift+S) read and write
   `.stc` files; the title bar marks unsaved changes with `*`, and New, Open and Quit ask before
   dropping them. In the browser, Open uploads a file and Save downloads one.

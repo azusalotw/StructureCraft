@@ -68,6 +68,7 @@ pub struct ViewRenderer {
     srgb_target: bool,
     model: Buffers,
     selection: Buffers,
+    loads: Buffers,
     origin: DVec3,
 }
 
@@ -176,6 +177,7 @@ impl ViewRenderer {
             srgb_target: target.is_srgb(),
             model: Buffers::default(),
             selection: Buffers::default(),
+            loads: Buffers::default(),
             origin: DVec3::ZERO,
         }
     }
@@ -221,6 +223,8 @@ pub struct SceneCallback {
     pub uniforms: Uniforms,
     pub model: Arc<Scene>,
     pub selection: Arc<Scene>,
+    /// Load arrows (or an empty scene), drawn over the model.
+    pub loads: Arc<Scene>,
 }
 
 impl egui_wgpu::CallbackTrait for SceneCallback {
@@ -236,6 +240,7 @@ impl egui_wgpu::CallbackTrait for SceneCallback {
             r.origin = self.model.origin;
             r.model.upload(device, &self.model);
             r.selection.upload(device, &self.selection);
+            r.loads.upload(device, &self.loads);
             r.write_uniforms(queue, &self.uniforms);
         }
         Vec::new()
@@ -244,6 +249,7 @@ impl egui_wgpu::CallbackTrait for SceneCallback {
     fn paint(&self, _info: egui::PaintCallbackInfo, pass: &mut wgpu::RenderPass<'static>, resources: &egui_wgpu::CallbackResources) {
         if let Some(r) = resources.get::<ViewRenderer>() {
             r.draw(pass, &r.model, false);
+            r.draw(pass, &r.loads, true);
             r.draw(pass, &r.selection, true);
         }
     }
