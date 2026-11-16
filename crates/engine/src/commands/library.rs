@@ -69,7 +69,7 @@ pub fn section_schema() -> Value {
             "material": {"type": "string", "description": "Material id; default: the first material"},
             "shape": {
                 "oneOf": [
-                    {"type": "object", "properties": {"shape": {"const": "rectangle"}, "b": {"type": "number"}, "h": {"type": "number"}}, "required": ["shape", "b", "h"]},
+                    {"type": "object", "properties": {"shape": {"const": "rectangle"}, "b": {"type": "number", "description": "Width along local axis 3, m"}, "h": {"type": "number", "description": "Depth along local axis 2, m"}}, "required": ["shape", "b", "h"]},
                     {"type": "object", "properties": {"shape": {"const": "circle"}, "d": {"type": "number"}}, "required": ["shape", "d"]},
                     {"type": "object", "properties": {"shape": {"const": "i_section"}, "h": {"type": "number"}, "b": {"type": "number"}, "tf": {"type": "number"}, "tw": {"type": "number"}}, "required": ["shape", "h", "b", "tf", "tw"]},
                     {"type": "object", "properties": {"shape": {"const": "shell"}, "t": {"type": "number"}}, "required": ["shape", "t"]},

@@ -1,7 +1,7 @@
 //! The panels around the viewport: menus, tools, model, properties, status.
 
 use serde_json::{Value, json};
-use structurecraft_engine::format_id;
+use structurecraft_engine::{AnalysisState, format_id};
 use structurecraft_model::{FrameRole, Restraint, SectionId};
 
 use crate::files::Action;
@@ -97,6 +97,12 @@ impl StructureCraftApp {
                         ui.close();
                     }
                 });
+                ui.menu_button("Analyze", |ui| {
+                    if ui.add_enabled(!self.analysing(), egui::Button::new("Run analysis (F5)")).clicked() {
+                        self.run_analysis();
+                        ui.close();
+                    }
+                });
                 ui.menu_button("View", |ui| {
                     if ui.button("Fit all (F)").clicked() {
                         self.fit();
@@ -165,6 +171,9 @@ impl StructureCraftApp {
                 if !self.status.is_empty() {
                     ui.separator();
                     ui.colored_label(theme::ERROR, &self.status);
+                } else if !self.results.summary.is_empty() && (self.analysing() || self.session.analysis_state() == AnalysisState::Current) {
+                    ui.separator();
+                    ui.label(&self.results.summary);
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(format!("scene {:.1} ms", self.scene_build_ms)).on_hover_text("Time the last rebuild of the GPU buffers took");
@@ -332,6 +341,7 @@ impl StructureCraftApp {
                 }
             }
             self.selection_loads(ui);
+            self.selection_results(ui);
             ui.separator();
             if ui.button("Delete selected").clicked() {
                 self.delete_selection();

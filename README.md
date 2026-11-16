@@ -7,8 +7,8 @@ building in 3D with nodes, beams, columns and slabs, then analyse it. It runs on
 macOS and Linux, in the browser, and AI agents can model through its built-in MCP server.
 
 > Early days: you can model (nodes, beams, columns, braces, slabs, walls, sections, stories),
-> view models of hundreds of thousands of nodes, and drive everything from the CLI or MCP. The
-> analysis engine comes next.
+> load it, view models of hundreds of thousands of nodes, run a linear static analysis of the
+> frames, and drive everything from the CLI or MCP. Result diagrams come next.
 
 ## Using the desktop app
 
@@ -24,6 +24,10 @@ macOS and Linux, in the browser, and AI agents can model through its built-in MC
   pattern in the Properties panel and assign forces to nodes (kN, kN·m), uniform loads to
   frames (kN/m, gravity, global or local direction) or pressure to slabs (kPa). The Loads
   picker in the tool bar draws one pattern's loads as arrows.
+- **Analyse:** Analyze > Run analysis (F5) solves every load case (linear static, frames
+  only: slabs hand their loads to the beams on their edges). Select a node or a frame to read
+  its displacements, reactions or end forces for a case or combination in the Properties panel.
+  The `analysis.run` and `analysis.results` commands do the same from the CLI or MCP.
 - **Files:** File > New, Open, Save and Save as (Ctrl/Cmd+N, O, S, Shift+S) read and write
   `.stc` files; the title bar marks unsaved changes with `*`, and New, Open and Quit ask before
   dropping them. In the browser, Open uploads a file and Save downloads one.

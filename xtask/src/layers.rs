@@ -12,6 +12,7 @@ pub const TABLE: &[(&str, Option<u8>)] = &[
     ("render", Some(1)),
     ("model", Some(2)),
     ("io", Some(3)),
+    ("analysis", Some(3)),
     ("engine", Some(4)),
     ("gpu", Some(5)),
     ("mcp", Some(5)),

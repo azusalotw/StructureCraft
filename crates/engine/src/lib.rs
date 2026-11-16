@@ -13,8 +13,9 @@ mod ids;
 use serde_json::Value;
 use structurecraft_model::{Change, Model, ModelError, Op};
 
-pub use commands::registry;
+pub use commands::{describe_analysis_error, registry};
 pub use ids::{ElementRef, format_id, parse_id};
+pub use structurecraft_analysis::{Analysis, AnalysisError, CaseResult, DOF_NAMES, analyze};
 
 /// Undo steps kept; the oldest is dropped beyond this.
 pub const UNDO_LIMIT: usize = 200;
@@ -35,6 +36,18 @@ pub struct Session {
     undo: Vec<Step>,
     redo: Vec<Step>,
     revision: u64,
+    /// The last analysis and the revision it was run on. Not saved: reopening a file means
+    /// running the analysis again.
+    analysis: Option<(u64, Analysis)>,
+}
+
+/// Whether the session's analysis results match the model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnalysisState {
+    None,
+    Current,
+    /// The model changed since the analysis ran.
+    Stale,
 }
 
 /// A command's description, as the UI, `--help` and MCP `tools/list` show it.
@@ -63,6 +76,8 @@ pub enum CommandError {
     Io(String),
     #[error("nothing to {0}")]
     NothingTo(&'static str),
+    #[error("analysis failed: {0}")]
+    Analysis(String),
 }
 
 impl Default for Session {
@@ -130,7 +145,7 @@ impl Session {
     }
 
     pub fn with_model(model: Model) -> Self {
-        Self { model, dirty: false, undo: Vec::new(), redo: Vec::new(), revision: 0 }
+        Self { model, dirty: false, undo: Vec::new(), redo: Vec::new(), revision: 0, analysis: None }
     }
 
     /// Replace the model and forget the undo history.
@@ -155,6 +170,25 @@ impl Session {
     /// Changes whenever the model does, so views rebuild only then.
     pub fn revision(&self) -> u64 {
         self.revision
+    }
+
+    /// The analysis results, while they match the model.
+    pub fn analysis(&self) -> Option<&Analysis> {
+        self.analysis.as_ref().filter(|(r, _)| *r == self.revision).map(|(_, a)| a)
+    }
+
+    pub fn analysis_state(&self) -> AnalysisState {
+        match &self.analysis {
+            None => AnalysisState::None,
+            Some((r, _)) if *r == self.revision => AnalysisState::Current,
+            Some(_) => AnalysisState::Stale,
+        }
+    }
+
+    /// Keep `analysis` as the results of revision `revision` (for front ends that run the
+    /// solver on another thread, from a copy of the model).
+    pub fn set_analysis(&mut self, revision: u64, analysis: Analysis) {
+        self.analysis = Some((revision, analysis));
     }
 
     /// Run a command by id. Hostile input yields an error, never a panic.

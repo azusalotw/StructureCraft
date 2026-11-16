@@ -17,6 +17,7 @@ commands:
 
 /// Library crates that must build for the browser.
 const WASM_PACKAGES: &[&str] = &[
+    "structurecraft-analysis",
     "structurecraft-engine",
     "structurecraft-geom",
     "structurecraft-gpu",

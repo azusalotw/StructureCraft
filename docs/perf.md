@@ -46,3 +46,26 @@ Known costs to revisit:
   node-to-element adjacency list would make it constant.
 - Every edit repacks the whole GPU scene (about 50 ms at 300,000 nodes). Updating only the
   changed slots would make edits on large models instant.
+
+## Analysis
+
+Linear static analysis of generated buildings (frames only, with the default 10 kN/m Dead
+load on every frame plus self-weight, and 3 kPa Live on every slab), measured 2026-11-16 on the
+4-core Linux container (release build). Both cases are solved from one factorisation.
+
+| Building | Nodes | Degrees of freedom | Analysis |
+|---|---|---|---|
+| 10 x 10 bays, 10 stories | 1,331 | 7,260 | 0.07 s |
+| 10 x 10 bays, 60 stories | 7,381 | 43,560 | 0.80 s |
+| 20 x 20 bays, 20 stories | 9,261 | 52,920 | 1.4 s |
+| 30 x 30 bays, 30 stories | 29,791 | 172,980 | 12.5 s |
+
+Almost all of the time is the sparse Cholesky factorisation; numbering, assembly, the loads
+and the end forces take tens of milliseconds. Its cost grows with the size of the largest
+"separator" (roughly one vertical slice through the building), so it rises much faster than
+the node count: wide plans cost more than tall towers with the same number of nodes.
+
+The default 509,141-node building is not analysed by the benchmark yet (it skips analysis above
+50,000 nodes). Making that size practical is the next solver step: a nested-dissection
+ordering, rigid floor diaphragms (three degrees of freedom a floor instead of six a node), and
+measuring the factor's memory.
