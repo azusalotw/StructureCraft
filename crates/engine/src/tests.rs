@@ -41,6 +41,16 @@ fn hostile_params_never_panic() {
         json!({"path": ""}),
         json!({"name": "", "shape": {"shape": "rectangle", "b": -1, "h": 0}}),
         json!({"stories": [{"name": "a", "elevation": 3}, {"name": "b", "elevation": 1}]}),
+        json!({"name": "Dead", "patterns": [{"pattern": "Nope", "factor": 1}]}),
+        json!({"name": "X", "cases": [{"case": "Dead", "factor": f64::MAX}]}),
+        json!({"nodes": ["N0:1"], "pattern": "Dead", "force": [1e300, 0, 0]}),
+        json!({"frames": ["F0:1"], "pattern": "Dead", "start": 0.9, "end": 0.1, "value": 1}),
+        json!({"frames": ["F0:1"], "pattern": "P0:1", "shape": "point", "start": -1}),
+        json!({"frames": ["F0:1"], "release_i": ["p", "t"], "release_j": ["p"]}),
+        json!({"frames": ["F0:1"], "release_i": "hinged"}),
+        json!({"areas": ["A0:1"], "pattern": "Live", "pressure": f64::MIN}),
+        json!({"patterns": ["Dead", "Dead"], "cases": ["Live"], "combinations": ["?"]}),
+        json!({"kind": "frame_loads", "pattern": "Nope"}),
     ];
     for spec in registry() {
         assert!((spec.input_schema)().is_object(), "{} has no schema", spec.id);
@@ -181,4 +191,87 @@ fn changing_frames_and_areas() {
     let a = run(&mut s, "area.draw", json!({"polygons": [[[0, 0, 0], [1, 0, 0], [1, 0, 3]]]}))["areas"][0].clone();
     run(&mut s, "area.set", json!({"areas": [a], "role": "wall"}));
     assert_eq!(run(&mut s, "element.get", json!({"ids": [a]}))["elements"][0]["role"], "wall");
+}
+
+#[test]
+fn loads_on_elements_replace_add_and_delete() {
+    let mut s = Session::new();
+    run(&mut s, "frame.draw", json!({"segments": [[[0, 0, 3], [6, 0, 3]], [[6, 0, 3], [12, 0, 3]]]}));
+    let frames: Vec<String> = run(&mut s, "element.list", json!({"kind": "frames"}))["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["id"].as_str().unwrap().to_owned())
+        .collect();
+    let out = run(&mut s, "load.frame", json!({"frames": frames, "pattern": "Dead", "value": 12e3}));
+    assert_eq!((out["added"].as_u64(), out["removed"].as_u64()), (Some(2), Some(0)));
+    // Again: replaced, not doubled.
+    let out = run(&mut s, "load.frame", json!({"frames": frames, "pattern": "Dead", "value": 15e3}));
+    assert_eq!((out["added"].as_u64(), out["removed"].as_u64()), (Some(2), Some(2)));
+    run(
+        &mut s,
+        "load.frame",
+        json!({"frames": [frames[0]], "pattern": "Dead", "shape": "point", "value": 5e3, "direction": "local2", "mode": "add"}),
+    );
+    run(&mut s, "load.frame", json!({"frames": [frames[0]], "pattern": "Live", "value": 6e3}));
+    assert_eq!(count(&mut s, "frame_loads"), 4);
+    let dead = run(&mut s, "load.list", json!({"kind": "frame_loads", "pattern": "Dead"}));
+    assert_eq!(dead["total"], 3);
+    run(&mut s, "load.frame", json!({"frames": [frames[1]], "pattern": "Dead", "mode": "delete"}));
+    assert_eq!(count(&mut s, "frame_loads"), 3);
+    // Deleting a frame takes its loads; undo brings both back.
+    run(&mut s, "element.delete", json!({"frames": [frames[0]]}));
+    assert_eq!(count(&mut s, "frame_loads"), 0);
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(count(&mut s, "frame_loads"), 3);
+    // Nodes and slabs.
+    let n = run(&mut s, "node.add", json!({"points": [[0, 0, 3]]}))["nodes"][0].clone();
+    run(&mut s, "load.node", json!({"nodes": [n], "pattern": "Live", "force": [0, 0, -1e4]}));
+    assert_eq!(count(&mut s, "node_loads"), 1);
+    let a = run(&mut s, "area.draw", json!({"polygons": [[[0, 0, 3], [6, 0, 3], [6, 5, 3], [0, 5, 3]]]}))["areas"][0].clone();
+    run(&mut s, "load.area", json!({"areas": [a], "pattern": "Live", "pressure": 3e3, "span": "two_way"}));
+    assert_eq!(count(&mut s, "area_loads"), 1);
+    // Deleting the node takes the frames and slab on it, and all their loads.
+    run(&mut s, "element.delete", json!({"nodes": [n]}));
+    assert_eq!((count(&mut s, "node_loads"), count(&mut s, "area_loads")), (0, 0));
+}
+
+#[test]
+fn patterns_cases_and_combinations() {
+    let mut s = Session::new();
+    assert_eq!((count(&mut s, "load_patterns"), count(&mut s, "load_cases")), (2, 2));
+    let out = run(&mut s, "load.pattern.add", json!({"name": "Wind X", "kind": "wind"}));
+    assert!(out["case"].is_string());
+    assert!(s.execute("load.pattern.add", json!({"name": "wind x"})).is_err(), "names are unique");
+    run(&mut s, "load.combination.set", json!({"name": "1.2D+1.6L", "cases": [{"case": "Dead", "factor": 1.2}, {"case": "Live", "factor": 1.6}]}));
+    run(&mut s, "load.combination.set", json!({"combination": "1.2D+1.6L", "name": "1.4D", "cases": [{"case": "Dead", "factor": 1.4}]}));
+    let combos = run(&mut s, "load.list", json!({"kind": "combinations"}));
+    assert_eq!((combos["total"].as_u64(), combos["items"][0]["name"].as_str()), (Some(1), Some("1.4D")));
+    run(&mut s, "load.case.set", json!({"name": "Gravity", "patterns": [{"pattern": "Dead", "factor": 1}, {"pattern": "Live", "factor": 1}]}));
+    // Deleting Dead empties it from Gravity, deletes the Dead case and takes it out of 1.4D.
+    run(&mut s, "frame.draw", json!({"segments": [[[0, 0, 3], [6, 0, 3]]]}));
+    let f = run(&mut s, "element.list", json!({"kind": "frames"}))["items"][0]["id"].clone();
+    run(&mut s, "load.frame", json!({"frames": [f], "pattern": "Dead", "value": 1e3}));
+    run(&mut s, "load.delete", json!({"patterns": ["Dead"], "cases": ["Dead"]}));
+    assert_eq!((count(&mut s, "load_patterns"), count(&mut s, "frame_loads")), (2, 0));
+    let cases = run(&mut s, "load.list", json!({"kind": "cases"}));
+    let gravity = cases["items"].as_array().unwrap().iter().find(|c| c["name"] == "Gravity").unwrap().clone();
+    assert_eq!(gravity["patterns"].as_array().unwrap().len(), 1);
+    assert_eq!(run(&mut s, "load.list", json!({"kind": "combinations"}))["items"][0]["cases"].as_array().unwrap().len(), 0);
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!((count(&mut s, "load_patterns"), count(&mut s, "frame_loads")), (3, 1));
+}
+
+#[test]
+fn frame_releases() {
+    let mut s = Session::new();
+    run(&mut s, "frame.draw", json!({"segments": [[[0, 0, 3], [6, 0, 3]]]}));
+    let f = run(&mut s, "element.list", json!({"kind": "frames"}))["items"][0]["id"].clone();
+    run(&mut s, "frame.set", json!({"frames": [f], "release_i": "pinned", "release_j": ["m3", "t"]}));
+    let got = run(&mut s, "element.get", json!({"ids": [f]}))["elements"][0].clone();
+    assert_eq!(got["release_i"], json!(["m2", "m3"]));
+    assert_eq!(got["release_j"], json!(["t", "m3"]));
+    assert!(s.execute("frame.set", json!({"frames": [f], "release_i": ["t"]})).is_err(), "torsion free at both ends");
+    run(&mut s, "frame.set", json!({"frames": [f], "release_j": "none"}));
+    assert_eq!(run(&mut s, "element.get", json!({"ids": [f]}))["elements"][0]["release_j"], json!([]));
 }

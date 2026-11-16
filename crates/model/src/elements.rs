@@ -80,6 +80,50 @@ impl FrameRole {
     }
 }
 
+/// Which internal forces a frame's ends do not carry, in the member's local axes: bits 0–5 at
+/// end i and 6–11 at end j, each end in the order axial (P), shear along 2 (V2), shear along
+/// 3 (V3), torsion (T), moment about 2 (M2), moment about 3 (M3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, Serialize, Deserialize)]
+pub struct Releases(pub u16);
+
+impl Releases {
+    pub const NONE: Self = Self(0);
+    pub const P: u16 = 1;
+    pub const V2: u16 = 1 << 1;
+    pub const V3: u16 = 1 << 2;
+    pub const T: u16 = 1 << 3;
+    pub const M2: u16 = 1 << 4;
+    pub const M3: u16 = 1 << 5;
+    /// Both bending moments: a pin.
+    pub const MOMENTS: u16 = Self::M2 | Self::M3;
+    /// The names of the six bits of one end, in order.
+    pub const NAMES: [&'static str; 6] = ["p", "v2", "v3", "t", "m2", "m3"];
+
+    /// From the bits of end i and end j (six bits each).
+    pub fn new(i: u16, j: u16) -> Self {
+        Self((i & 0x3f) | (j & 0x3f) << 6)
+    }
+
+    pub fn i(self) -> u16 {
+        self.0 & 0x3f
+    }
+
+    pub fn j(self) -> u16 {
+        self.0 >> 6 & 0x3f
+    }
+
+    /// Whether local degree of freedom `dof` (0–11, end i first) is released.
+    pub fn releases(self, dof: usize) -> bool {
+        dof < 12 && self.0 & (1 << dof) != 0
+    }
+
+    /// Releasing the same axial force or torsion at both ends leaves the member free to slide
+    /// or spin, so the model refuses it.
+    pub fn is_valid(self) -> bool {
+        self.0 >> 12 == 0 && self.i() & self.j() & (Self::P | Self::T) == 0
+    }
+}
+
 /// A line element from node `i` to node `j`.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Frame {
@@ -89,6 +133,7 @@ pub struct Frame {
     pub role: FrameRole,
     /// Rotation of the section about the member axis, radians.
     pub angle: f64,
+    pub releases: Releases,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, Serialize, Deserialize)]

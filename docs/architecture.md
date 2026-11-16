@@ -8,7 +8,7 @@ crates in lower layers, and only layers 5 and 6 and the apps may use a UI toolki
 |---|---|---|
 | L0 | `geom` | points, vectors, bounding boxes (f64 metres) |
 | L1 | `render` | view math: the orbit camera and projections, headless |
-| L2 | `model` | the structural model: nodes, frames, areas, grids, materials, sections |
+| L2 | `model` | the structural model: nodes, frames, areas, grids, materials, sections, loads |
 | L3 | `io` | model files (`.stc`), later import and export |
 | L4 | `engine` | the session and the command registry (everything is a command) |
 | L5 | `gpu`, `mcp` | drawing the model with wgpu inside egui; the MCP server |

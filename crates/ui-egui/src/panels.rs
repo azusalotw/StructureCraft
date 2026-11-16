@@ -143,6 +143,8 @@ impl StructureCraftApp {
                 if ui.button("Fit").clicked() {
                     self.fit();
                 }
+                ui.separator();
+                self.shown_pattern_picker(ui);
             });
         });
     }
@@ -172,7 +174,13 @@ impl StructureCraftApp {
     }
 
     pub(crate) fn model_panel(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::left("model_tree").default_width(220.0).show(ctx, |ui| {
+        egui::SidePanel::left("model_tree").default_width(240.0).show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| self.model_tree(ui));
+        });
+    }
+
+    fn model_tree(&mut self, ui: &mut egui::Ui) {
+        {
             ui.heading("Model");
             let m = &self.session.model;
             egui::Grid::new("model_counts").num_columns(2).show(ui, |ui| {
@@ -198,7 +206,8 @@ impl StructureCraftApp {
                     ui.label(format!("{}  {:.2} m", s.name, s.elevation));
                 }
             });
-        });
+        }
+        self.loads_tree(ui);
     }
 
     fn section_picker(&mut self, ui: &mut egui::Ui, current: Option<SectionId>, shell: bool) -> Option<SectionId> {
@@ -217,7 +226,13 @@ impl StructureCraftApp {
     }
 
     pub(crate) fn properties_panel(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::right("properties").default_width(260.0).show(ctx, |ui| {
+        egui::SidePanel::right("properties").default_width(280.0).show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| self.properties(ui));
+        });
+    }
+
+    fn properties(&mut self, ui: &mut egui::Ui) {
+        {
             ui.heading("Properties");
             if self.selection.is_empty() {
                 ui.label("Select elements to see and change their properties.");
@@ -316,11 +331,12 @@ impl StructureCraftApp {
                     self.run("area.set", json!({"areas": areas, "section": format_id(section)}));
                 }
             }
+            self.selection_loads(ui);
             ui.separator();
             if ui.button("Delete selected").clicked() {
                 self.delete_selection();
             }
-        });
+        }
     }
 
     pub(crate) fn generate_window(&mut self, ctx: &egui::Context) {

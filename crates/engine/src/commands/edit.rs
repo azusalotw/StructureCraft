@@ -2,13 +2,14 @@
 
 use serde::Deserialize;
 use serde_json::{Value, json};
-use structurecraft_model::{Area, Change, Frame, Node, Op};
+use structurecraft_model::{Area, Change, Frame, Node, Op, Releases};
 
 use super::draw::{AreaRoleName, RestraintName, RoleName};
 use super::{Point, Ref, check_batch, ids, ids_schema, parse};
 use crate::{CommandError, Session};
 
-pub const DELETE_SUMMARY: &str = "Delete nodes, frames and areas; deleting a node also deletes the frames and areas on it.";
+pub const DELETE_SUMMARY: &str =
+    "Delete nodes, frames and areas; deleting a node also deletes the frames and areas on it, and any element's loads go with it.";
 pub const MOVE_SUMMARY: &str = "Move nodes by an offset; the frames and areas on them follow.";
 pub const RESTRAIN_SUMMARY: &str = "Set the support of nodes: free, pinned (translations held) or fixed (all six held).";
 
@@ -46,8 +47,20 @@ pub fn delete(session: &mut Session, input: Value) -> Result<Value, CommandError
     frames.extend(ids(&input.frames)?);
     areas.extend(ids(&input.areas)?);
     let (nodes, frames, areas) = (sorted(nodes), sorted(frames), sorted(areas));
+    let loads = session.model.loads_on(&nodes, &frames, &areas, None);
     let counts = json!({"nodes": nodes.len(), "frames": frames.len(), "areas": areas.len()});
     session.edit("Delete", |tx| {
+        // Loads first: an element with loads on it cannot go.
+        for change in [
+            (!loads.node_loads.is_empty()).then(|| Change::NodeLoads(Op::Remove(loads.node_loads))),
+            (!loads.frame_loads.is_empty()).then(|| Change::FrameLoads(Op::Remove(loads.frame_loads))),
+            (!loads.area_loads.is_empty()).then(|| Change::AreaLoads(Op::Remove(loads.area_loads))),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            tx.apply(change)?;
+        }
         // Areas and frames first: a node in use cannot go.
         if !areas.is_empty() {
             tx.apply(Change::Areas(Op::Remove(areas)))?;
@@ -134,16 +147,52 @@ pub fn restrain(session: &mut Session, input: Value) -> Result<Value, CommandErr
     })
 }
 
-pub const FRAME_SET_SUMMARY: &str = "Change the section or role of frames.";
+pub const FRAME_SET_SUMMARY: &str = "Change the section, role or end releases of frames.";
 pub const AREA_SET_SUMMARY: &str = "Change the section or role of areas.";
 
 pub fn frame_set_schema() -> Value {
     json!({
         "type": "object",
-        "properties": {"frames": ids_schema("frame"), "section": {"type": "string"}, "role": {"enum": ["beam", "column", "brace"]}},
+        "properties": {
+            "frames": ids_schema("frame"),
+            "section": {"type": "string"},
+            "role": {"enum": ["beam", "column", "brace"]},
+            "release_i": release_schema("end i"),
+            "release_j": release_schema("end j"),
+        },
         "required": ["frames"],
         "additionalProperties": false,
     })
+}
+
+fn release_schema(end: &str) -> Value {
+    json!({
+        "description": format!("What {end} does not carry: none, pinned (both moments), or a list of p, v2, v3, t, m2, m3 (local axes)"),
+        "oneOf": [{"enum": ["none", "pinned"]}, {"type": "array", "items": {"enum": Releases::NAMES}}],
+    })
+}
+
+/// One end's releases as a command gives them.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum ReleaseSpec {
+    Named(String),
+    Bits(Vec<String>),
+}
+
+impl ReleaseSpec {
+    fn bits(&self) -> Result<u16, CommandError> {
+        let bad =
+            |s: &str| CommandError::InvalidInput(format!("unknown release `{s}`: use none, pinned or a list of {}", Releases::NAMES.join(", ")));
+        match self {
+            Self::Named(s) if s == "none" => Ok(0),
+            Self::Named(s) if s == "pinned" => Ok(Releases::MOMENTS),
+            Self::Named(s) => Err(bad(s)),
+            Self::Bits(names) => {
+                names.iter().try_fold(0, |bits, n| Releases::NAMES.iter().position(|x| x == n).map(|k| bits | 1 << k).ok_or_else(|| bad(n)))
+            }
+        }
+    }
 }
 
 pub fn area_set_schema() -> Value {
@@ -164,19 +213,26 @@ pub fn frame_set(session: &mut Session, input: Value) -> Result<Value, CommandEr
         section: Option<Ref>,
         #[serde(default)]
         role: Option<RoleName>,
+        #[serde(default)]
+        release_i: Option<ReleaseSpec>,
+        #[serde(default)]
+        release_j: Option<ReleaseSpec>,
     }
-    let Input { frames, section, role } = parse(input)?;
+    let Input { frames, section, role, release_i, release_j } = parse(input)?;
     check_batch(frames.len())?;
     let ids = ids::<Frame>(&frames)?;
     let section = section.as_ref().map(Ref::id).transpose()?;
+    let release_i = release_i.as_ref().map(ReleaseSpec::bits).transpose()?;
+    let release_j = release_j.as_ref().map(ReleaseSpec::bits).transpose()?;
+    let releases = |r: Releases| Releases::new(release_i.unwrap_or(r.i()), release_j.unwrap_or(r.j()));
     session.edit("Change frames", |tx| {
         let rows = ids
             .iter()
             .map(|id| {
-                tx.model()
-                    .frames()
-                    .get(*id)
-                    .map(|f| (*id, Frame { section: section.unwrap_or(f.section), role: role.map_or(f.role, Into::into), ..*f }))
+                tx.model().frames().get(*id).map(|f| {
+                    let (section, role) = (section.unwrap_or(f.section), role.map_or(f.role, Into::into));
+                    (*id, Frame { section, role, releases: releases(f.releases), ..*f })
+                })
             })
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| CommandError::InvalidInput("a frame to change does not exist".to_owned()))?;

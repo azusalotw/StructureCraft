@@ -5,6 +5,7 @@
 //! session, so the UI does exactly what the CLI and MCP server can.
 
 mod files;
+mod loads;
 mod navigation;
 mod panels;
 mod picking;
@@ -39,6 +40,7 @@ pub struct StructureCraftApp {
     tools: tools::ToolState,
     generate: Option<panels::GenerateForm>,
     files: files::Files,
+    loads: loads::LoadsState,
 }
 
 impl Default for StructureCraftApp {
@@ -59,6 +61,7 @@ impl Default for StructureCraftApp {
             tools: tools::ToolState::default(),
             generate: None,
             files: files::Files::default(),
+            loads: loads::LoadsState::default(),
         }
     }
 }

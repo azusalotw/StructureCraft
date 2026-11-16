@@ -83,7 +83,7 @@ pub fn building(session: &mut Session, input: Value) -> Result<Value, CommandErr
         for k in 1..nz {
             for j in 0..ny {
                 for i in 0..nx {
-                    let frame = |a, b, section, role| Frame { i: a, j: b, section, role, angle: 0.0 };
+                    let frame = |a, b, section, role| Frame { i: a, j: b, section, role, ..Frame::default() };
                     frames.push(frame(at(i, j, k - 1), at(i, j, k), column, FrameRole::Column));
                     if i + 1 < nx {
                         frames.push(frame(at(i, j, k), at(i + 1, j, k), beam, FrameRole::Beam));

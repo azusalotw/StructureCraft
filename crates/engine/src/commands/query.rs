@@ -41,7 +41,12 @@ fn node(m: &Model, n: &Node) -> Value {
 }
 
 fn frame(f: &Frame) -> Value {
-    json!({"i": format_id(f.i), "j": format_id(f.j), "section": format_id(f.section), "role": f.role, "angle": f.angle})
+    let end =
+        |bits: u16| structurecraft_model::Releases::NAMES.iter().enumerate().filter(|(k, _)| bits & 1 << k != 0).map(|(_, n)| *n).collect::<Vec<_>>();
+    json!({
+        "i": format_id(f.i), "j": format_id(f.j), "section": format_id(f.section), "role": f.role, "angle": f.angle,
+        "release_i": end(f.releases.i()), "release_j": end(f.releases.j()),
+    })
 }
 
 fn area(a: &Area) -> Value {

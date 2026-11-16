@@ -28,6 +28,7 @@ pub const SCENE: Palette = Palette {
     wall: [0x96, 0x86, 0x7a, 70],
     selected: [0xf2, 0xc9, 0x4c, 255],
     selected_area: [0xf2, 0xc9, 0x4c, 110],
+    load: [0xf0, 0x6e, 0x8c, 255],
 };
 
 pub fn apply(ctx: &egui::Context) {

@@ -111,6 +111,9 @@ impl Tx<'_> {
     add_fn!(add_areas, Areas, Area);
     add_fn!(add_materials, Materials, Material);
     add_fn!(add_sections, Sections, Section);
+    add_fn!(add_patterns, Patterns, LoadPattern);
+    add_fn!(add_cases, Cases, LoadCase);
+    add_fn!(add_combinations, Combinations, Combination);
 
     fn roll_back(self) {
         for change in self.inverse.into_iter().rev() {

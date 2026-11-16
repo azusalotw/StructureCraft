@@ -43,6 +43,7 @@ impl StructureCraftApp {
             return;
         }
         self.refresh_scene();
+        self.refresh_loads_scene();
 
         let painter = ui.painter_at(rect);
         self.draw_grid(&painter, rect, viewport);
@@ -51,7 +52,8 @@ impl StructureCraftApp {
             let ppp = f64::from(ui.ctx().pixels_per_point());
             let uniforms =
                 Uniforms { view_proj: self.camera.view_projection(viewport), viewport: [(viewport.x * ppp) as f32, (viewport.y * ppp) as f32] };
-            let callback = SceneCallback { uniforms, model: self.scene.clone(), selection: self.selection_scene.clone() };
+            let callback =
+                SceneCallback { uniforms, model: self.scene.clone(), selection: self.selection_scene.clone(), loads: self.loads.scene.clone() };
             painter.add(egui_wgpu::Callback::new_paint_callback(rect, callback));
         }
 

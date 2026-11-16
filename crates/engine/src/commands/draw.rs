@@ -163,7 +163,7 @@ pub fn frame(session: &mut Session, input: Value) -> Result<Value, CommandError>
                 Some(s) => s,
                 None => default_section(tx.model(), false, role == FrameRole::Column)?,
             };
-            rows.push(Frame { i, j, section, role, angle: 0.0 });
+            rows.push(Frame { i, j, section, role, ..Frame::default() });
         }
         let frames = tx.add_frames(rows)?;
         Ok(json!({"frames": id_list(&frames), "nodes_created": created}))
