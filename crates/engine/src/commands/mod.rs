@@ -1,5 +1,6 @@
 //! The command registry, sorted by id, and what the commands share.
 
+mod analysis;
 mod draw;
 mod edit;
 mod generate;
@@ -24,6 +25,8 @@ pub(crate) const UNTITLED: &str = "Untitled";
 pub(crate) const MAX_BATCH: usize = 5_000_000;
 
 static REGISTRY: &[CommandSpec] = &[
+    CommandSpec { id: "analysis.results", summary: analysis::RESULTS_SUMMARY, input_schema: analysis::results_schema, run: analysis::results },
+    CommandSpec { id: "analysis.run", summary: analysis::RUN_SUMMARY, input_schema: empty_schema, run: analysis::run },
     CommandSpec { id: "area.draw", summary: draw::AREA_SUMMARY, input_schema: draw::area_schema, run: draw::area },
     CommandSpec { id: "area.set", summary: edit::AREA_SET_SUMMARY, input_schema: edit::area_set_schema, run: edit::area_set },
     CommandSpec { id: "edit.redo", summary: "Redo the last undone edit.", input_schema: empty_schema, run: edit::redo },
@@ -53,6 +56,12 @@ static REGISTRY: &[CommandSpec] = &[
     CommandSpec { id: "node.restrain", summary: edit::RESTRAIN_SUMMARY, input_schema: edit::restrain_schema, run: edit::restrain },
     CommandSpec { id: "section.add", summary: library::SECTION_SUMMARY, input_schema: library::section_schema, run: library::section },
 ];
+
+/// An analysis error as commands report it, with element ids (for front ends that run the
+/// solver themselves, on another thread).
+pub fn describe_analysis_error(m: &Model, e: structurecraft_analysis::AnalysisError) -> CommandError {
+    analysis::describe(m, e)
+}
 
 /// Every command, sorted by id.
 pub fn registry() -> &'static [CommandSpec] {

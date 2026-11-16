@@ -16,6 +16,7 @@ structurecraft-geom = { path = "crates/geom" }
 structurecraft-render = { path = "crates/render" }
 structurecraft-model = { path = "crates/model" }
 structurecraft-io = { path = "crates/io" }
+structurecraft-analysis = { path = "crates/analysis" }
 structurecraft-engine = { path = "crates/engine" }
 structurecraft-ui-egui = { path = "crates/ui-egui" }
 structurecraft-mcp = { path = "crates/mcp" }
@@ -33,6 +34,8 @@ rustc-hash = "2"
 
 # math (f64 throughout the model; f32 only on the GPU side)
 glam = { version = "0.30", features = ["serde"] }
+# sparse Cholesky for the solver (MIT); no rayon, so it builds for wasm
+faer = { version = "0.24", default-features = false, features = ["std", "sparse-linalg"] }
 
 # ui
 egui = "0.33"

@@ -51,12 +51,22 @@ fn hostile_params_never_panic() {
         json!({"areas": ["A0:1"], "pattern": "Live", "pressure": f64::MIN}),
         json!({"patterns": ["Dead", "Dead"], "cases": ["Live"], "combinations": ["?"]}),
         json!({"kind": "frame_loads", "pattern": "Nope"}),
+        json!({"of": "Dead", "kind": "displacements", "offset": u64::MAX, "limit": 0}),
+        json!({"of": "K9:9", "kind": "reactions"}),
+        json!({"of": "", "kind": "frame_forces", "frames": ["F9:9", "x"], "nodes": ["N0:0"]}),
+        json!({"of": "Live", "kind": "reactions", "nodes": ["N1:1", "N0:1"]}),
     ];
     for spec in registry() {
         assert!((spec.input_schema)().is_object(), "{} has no schema", spec.id);
         for input in &inputs {
             let mut s = Session::new();
             run(&mut s, "frame.draw", json!({"segments": [[[0, 0, 0], [0, 0, 3]]]}));
+            let _ = s.execute(spec.id, input.clone());
+            // Again with results to read: the column fixed at its base and analysed.
+            let mut s = Session::new();
+            run(&mut s, "node.add", json!({"points": [[0, 0, 0]], "restraint": "fixed"}));
+            run(&mut s, "frame.draw", json!({"segments": [[[0, 0, 0], [0, 0, 3]]]}));
+            run(&mut s, "analysis.run", json!({}));
             let _ = s.execute(spec.id, input.clone());
         }
     }
@@ -274,4 +284,70 @@ fn frame_releases() {
     assert!(s.execute("frame.set", json!({"frames": [f], "release_i": ["t"]})).is_err(), "torsion free at both ends");
     run(&mut s, "frame.set", json!({"frames": [f], "release_j": "none"}));
     assert_eq!(run(&mut s, "element.get", json!({"ids": [f]}))["elements"][0]["release_j"], json!([]));
+}
+
+#[test]
+fn analysis_of_a_generated_building() {
+    let mut s = Session::new();
+    run(&mut s, "generate.building", json!({"bays_x": 2, "bays_y": 1, "stories": 2, "bay_x": 6, "bay_y": 5, "story_height": 3}));
+    let areas: Vec<String> = s.model.areas().ids().map(format_id).collect();
+    run(&mut s, "load.area", json!({"areas": areas, "pattern": "Live", "pressure": 3e3}));
+    run(&mut s, "load.combination.set", json!({"name": "ULS", "cases": [{"case": "Dead", "factor": 1.2}, {"case": "Live", "factor": 1.6}]}));
+    run(
+        &mut s,
+        "load.combination.set",
+        json!({"name": "Env", "kind": "envelope", "cases": [{"case": "Dead", "factor": 1.0}, {"case": "Live", "factor": 1.0}]}),
+    );
+    assert!(s.execute("analysis.results", json!({"of": "Dead", "kind": "reactions"})).is_err());
+    let out = run(&mut s, "analysis.run", json!({}));
+    assert_eq!(out["cases"].as_array().unwrap().len(), 2);
+
+    // Dead is the frames' own weight; Live is 3 kPa on four 6 x 5 m slabs.
+    let weight: f64 = s
+        .model
+        .frames()
+        .iter()
+        .map(|(_, f)| {
+            let len = s.model.nodes().get(f.i).unwrap().position.distance(s.model.nodes().get(f.j).unwrap().position);
+            let area = match s.model.sections().get(f.section).unwrap().shape {
+                structurecraft_model::SectionShape::Rectangle { b, h } => b * h,
+                _ => unreachable!(),
+            };
+            2400.0 * structurecraft_analysis::GRAVITY * area * len
+        })
+        .sum();
+    fn total_z(s: &mut Session, of: &str) -> f64 {
+        let r = run(s, "analysis.results", json!({"of": of, "kind": "reactions"}));
+        r["items"].as_array().unwrap().iter().map(|i| i["values"][2].as_f64().unwrap()).sum()
+    }
+    let (dead, live) = (total_z(&mut s, "Dead"), total_z(&mut s, "Live"));
+    assert!((dead - weight).abs() < 1e-6 * weight, "{dead} vs {weight}");
+    assert!((live - 3e3 * 4.0 * 30.0).abs() < 1e-6 * live);
+    let uls = total_z(&mut s, "ULS");
+    assert!((uls - (1.2 * dead + 1.6 * live)).abs() < 1e-6 * uls);
+    let env = run(&mut s, "analysis.results", json!({"of": "Env", "kind": "displacements", "limit": 1}));
+    assert_eq!(env["items"].as_array().unwrap().len(), 1);
+    assert!(env["items"][0]["max"].is_array() && env["total"].as_u64().unwrap() == s.model.nodes().len() as u64);
+    let forces = run(&mut s, "analysis.results", json!({"of": "C0:1", "kind": "frame_forces", "limit": 2, "offset": 1}));
+    assert_eq!(forces["items"].as_array().unwrap().len(), 2);
+    assert_eq!(forces["items"][0]["values"].as_array().unwrap().len(), 12);
+    assert_eq!(forces["order"][5], "m3_i");
+
+    // Any edit makes the results stale.
+    let node = format_id(s.model.nodes().ids().last().unwrap());
+    run(&mut s, "node.move", json!({"nodes": [node], "by": [0, 0, 0.1]}));
+    assert_eq!(s.analysis_state(), AnalysisState::Stale);
+    assert!(s.execute("analysis.results", json!({"of": "Dead", "kind": "reactions"})).is_err());
+}
+
+#[test]
+fn analysis_errors_name_the_element() {
+    let mut s = Session::new();
+    run(&mut s, "frame.draw", json!({"segments": [[[0, 0, 0], [0, 0, 3]]]}));
+    let e = s.execute("analysis.run", json!({})).unwrap_err().to_string();
+    assert!(e.contains("unstable"), "{e}");
+    let lonely = run(&mut s, "node.add", json!({"points": [[9, 9, 0]]}))["nodes"][0].clone();
+    run(&mut s, "load.node", json!({"nodes": [lonely.clone()], "pattern": "Live", "force": [0, 0, -1]}));
+    let e = s.execute("analysis.run", json!({})).unwrap_err().to_string();
+    assert!(e.contains(lonely.as_str().unwrap()) && e.contains("no frame"), "{e}");
 }

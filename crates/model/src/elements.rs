@@ -188,11 +188,12 @@ pub struct Material {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "shape", rename_all = "snake_case")]
 pub enum SectionShape {
-    /// Solid rectangle, width `b` along the local 2 axis, depth `h` along 3.
+    /// Solid rectangle: depth `h` along the local 2 axis (up, for a beam), width `b` along 3.
     Rectangle { b: f64, h: f64 },
     /// Solid circle.
     Circle { d: f64 },
-    /// Doubly symmetric I: overall depth, flange width, flange and web thickness.
+    /// Doubly symmetric I: overall depth along local 2, flange width along 3, flange and web
+    /// thickness.
     ISection { h: f64, b: f64, tf: f64, tw: f64 },
     /// A shell of uniform thickness (slabs and walls).
     Shell { t: f64 },

@@ -9,14 +9,20 @@ crates in lower layers, and only layers 5 and 6 and the apps may use a UI toolki
 | L0 | `geom` | points, vectors, bounding boxes (f64 metres) |
 | L1 | `render` | view math: the orbit camera and projections, headless |
 | L2 | `model` | the structural model: nodes, frames, areas, grids, materials, sections, loads |
-| L3 | `io` | model files (`.stc`), later import and export |
+| L3 | `io`, `analysis` | model files (`.stc`), later import and export; the solver |
 | L4 | `engine` | the session and the command registry (everything is a command) |
 | L5 | `gpu`, `mcp` | drawing the model with wgpu inside egui; the MCP server |
 | L6 | `ui-egui` | the egui front end shared by desktop and browser: viewport, tools, panels |
 | apps | `structurecraft`, `structurecraft-web`, `structurecraft-cli` | desktop app, browser app, headless CLI |
 
-The analysis solver will be its own crate below `model`'s consumers (it reads the model's
-arrays directly and never depends on the UI).
+The solver (`analysis`) reads the model's tables directly and never depends on the UI or on
+files. It numbers the free degrees of freedom of the nodes frames reach, assembles the frame
+stiffnesses straight into a sparse lower triangle (no triplet list), factors it once with
+`faer`'s sparse Cholesky (AMD ordering, supernodal; threads on the desktop, one thread in the
+browser) and solves every load case from that factor. Results live in the `Session` with the
+revision they were computed from, so any edit makes them stale; they are not saved in `.stc`
+files. Combinations are evaluated from the case results when they are read. The desktop app
+runs the solver on its own thread on a copy of the model.
 
 ## Performance from the start
 

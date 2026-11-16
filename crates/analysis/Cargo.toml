@@ -1,0 +1,21 @@
+[package]
+name = "structurecraft-analysis"
+description = "StructureCraft solver: linear static analysis of 3D frames by the direct stiffness method"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+structurecraft-model = { workspace = true }
+structurecraft-geom = { workspace = true }
+faer = { workspace = true }
+rustc-hash = { workspace = true }
+thiserror = { workspace = true }
+
+# Threads on the desktop; the browser build stays single-threaded.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+faer = { workspace = true, features = ["rayon"] }

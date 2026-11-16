@@ -38,7 +38,7 @@ fn named_schema(what: &str) -> Value {
 }
 
 /// A pattern, case or combination by id or, failing that, by name.
-fn find<T: ElementRef>(table: &Table<T>, r: &Ref, name: impl Fn(&T) -> &str, what: &str) -> Result<Id<T>, CommandError> {
+pub(crate) fn find<T: ElementRef>(table: &Table<T>, r: &Ref, name: impl Fn(&T) -> &str, what: &str) -> Result<Id<T>, CommandError> {
     if let Some(id) = parse_id::<T>(r.as_str()).filter(|id| table.contains(*id)) {
         return Ok(id);
     }
@@ -53,11 +53,11 @@ fn pattern(m: &Model, r: &Ref) -> Result<PatternId, CommandError> {
     find(m.patterns(), r, |p| &p.name, "load pattern")
 }
 
-fn case(m: &Model, r: &Ref) -> Result<Id<LoadCase>, CommandError> {
+pub(crate) fn case(m: &Model, r: &Ref) -> Result<Id<LoadCase>, CommandError> {
     find(m.cases(), r, |c| &c.name, "load case")
 }
 
-fn combination(m: &Model, r: &Ref) -> Result<Id<Combination>, CommandError> {
+pub(crate) fn combination(m: &Model, r: &Ref) -> Result<Id<Combination>, CommandError> {
     find(m.combinations(), r, |c| &c.name, "load combination")
 }
 

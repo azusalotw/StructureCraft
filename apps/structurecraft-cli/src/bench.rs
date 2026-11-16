@@ -20,6 +20,9 @@ const PALETTE: structurecraft_gpu::Palette = structurecraft_gpu::Palette {
     load: [255; 4],
 };
 
+/// The largest model the benchmark analyses.
+const ANALYSIS_LIMIT: usize = 50_000;
+
 fn timed<T>(label: &str, f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
     let start = Instant::now();
     let out = f()?;
@@ -86,5 +89,23 @@ pub fn run(bays: Option<&str>, stories: Option<&str>) -> Result<(), String> {
     println!("  {:.1} MB", bytes.len() as f64 / 1e6);
     timed("open with loads", || structurecraft_io::from_bytes(&bytes).map_err(|e| e.to_string()))?;
     drop(bytes);
+
+    // The direct solver's time grows much faster than the model (see docs/perf.md); until it
+    // is tuned, the default building is too large to analyse in a benchmark run.
+    if s.model.nodes().len() > ANALYSIS_LIMIT {
+        println!("analysis skipped above {ANALYSIS_LIMIT} nodes: try `bench 30 30`");
+        return Ok(());
+    }
+    let out = timed("analyse Dead and Live (linear static)", || exec(&mut s, "analysis.run", json!({})))?;
+    println!("  {} degrees of freedom, {} stiffness entries, {} held", out["dofs"], out["nonzeros"], out["held_dofs"]);
+    for c in out["cases"].as_array().into_iter().flatten() {
+        println!(
+            "  {}: largest displacement {:.2} mm, vertical reactions {:.1} kN",
+            c["name"],
+            c["max_displacement"].as_f64().unwrap_or(0.0) * 1e3,
+            c["reaction_total"][2].as_f64().unwrap_or(0.0) / 1e3
+        );
+    }
+    timed("read one page of frame forces", || exec(&mut s, "analysis.results", json!({"of": "Dead", "kind": "frame_forces", "limit": 1000})))?;
     Ok(())
 }

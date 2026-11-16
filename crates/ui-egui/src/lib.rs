@@ -9,6 +9,7 @@ mod loads;
 mod navigation;
 mod panels;
 mod picking;
+mod results;
 pub mod theme;
 mod tools;
 mod viewport;
@@ -41,6 +42,7 @@ pub struct StructureCraftApp {
     generate: Option<panels::GenerateForm>,
     files: files::Files,
     loads: loads::LoadsState,
+    results: results::ResultsState,
 }
 
 impl Default for StructureCraftApp {
@@ -62,6 +64,7 @@ impl Default for StructureCraftApp {
             generate: None,
             files: files::Files::default(),
             loads: loads::LoadsState::default(),
+            results: results::ResultsState::default(),
         }
     }
 }
@@ -120,7 +123,7 @@ impl StructureCraftApp {
         }
         self.file_shortcuts(ctx);
         use egui::{Key, KeyboardShortcut as K, Modifiers as M};
-        let (undo, redo, delete, escape, fit, enter) = ctx.input_mut(|i| {
+        let (undo, redo, delete, escape, fit, enter, analyse) = ctx.input_mut(|i| {
             let redo = i.consume_shortcut(&K::new(M::COMMAND | M::SHIFT, Key::Z)) || i.consume_shortcut(&K::new(M::COMMAND, Key::Y));
             (
                 i.consume_shortcut(&K::new(M::COMMAND, Key::Z)),
@@ -129,8 +132,12 @@ impl StructureCraftApp {
                 i.consume_key(M::NONE, Key::Escape),
                 i.consume_key(M::NONE, Key::F),
                 i.consume_key(M::NONE, Key::Enter),
+                i.consume_key(M::NONE, Key::F5),
             )
         });
+        if analyse {
+            self.run_analysis();
+        }
         if undo {
             self.run("edit.undo", serde_json::Value::Null);
         }
@@ -169,6 +176,7 @@ impl StructureCraftApp {
 
     /// The whole window; the one outer container every host draws.
     pub fn ui(&mut self, ctx: &egui::Context) {
+        self.poll_analysis(ctx);
         self.files_frame(ctx);
         self.shortcuts(ctx);
         self.menu_bar(ctx);
